@@ -3,12 +3,12 @@ import MAB as mab
 import matplotlib.pyplot as plt
 
 
-p1=[0.05,0.4,0.7,0.90]
-p2=[0.25,0.27,0.32,0.40,0.42]
-N1=50
+p1 = [0.05,0.4,0.7,0.90]
+p2 = [0.25,0.27,0.32,0.40,0.42]
+N1 = 50
 plt.figure(1)
 for i,p in enumerate([p1,p2]):
-    my_MAB=mab.Binomial_MAB(p)
+    my_MAB=mab.BinomialMAB(p)
     print(my_MAB.MAB)
     print(my_MAB.Cp)
     plt.subplot(121+i)
@@ -27,7 +27,7 @@ methods=['beta','B','Exp','F','Exp','beta','B']
 param=[(0.5,0.8),0.3,(0.2,1.),[np.array([0.2,0.4,0.6,0.8,1.]),np.array([1./5.]*5)],(0.3,0.9),(0.4,0.5),0.4]
 #param=[(0.5,0.5),0.5]
 
-my_MAB_2=mab.generic_MAB(methods,param)
+my_MAB_2=mab.GenericMAB(methods,param)
 print(my_MAB_2.means)
 N2=100
 
