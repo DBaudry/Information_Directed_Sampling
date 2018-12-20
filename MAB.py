@@ -28,6 +28,20 @@ class GenericMAB:
                 raise NameError('This method is not implemented, available methods are defined in generate_arms method')
         return arms_list
 
+    def regret(self, reward, T):
+        return self.mu_max * np.arange(1,T+1) - np.cumsum(reward)
+
+
+    def MC_regret(self,method, N, T,rho=0.2):
+        MC_regret = np.zeros(T)
+        for _ in tqdm(range(N), desc='Computing ' + str(N) + ' simulations'):
+            if method == 'UCB1':
+                MC_regret += self.regret(self.UCB1(T,rho)[0],T)
+            elif method == 'TS':
+                MC_regret += self.regret(self.TS(T)[0],T)
+        return MC_regret/N
+
+
 
     def init_lists(self, T):
         return np.zeros(self.nb_arms), np.zeros(self.nb_arms), np.zeros(T), np.zeros(T)
@@ -78,19 +92,27 @@ class GenericMAB:
         return np.array(reward), np.array(arm_sequence)
 
 
-    def regret(self, reward, T):
-        return self.mu_max * np.arange(1,T+1) - np.cumsum(reward)
-
-
-    def MC_regret(self,method, N, T,rho=0.2):
-        MC_regret = np.zeros(T)
-        for _ in tqdm(range(N), desc='Computing ' + str(N) + ' simulations'):
-            if method == 'UCB1':
-                MC_regret += self.regret(self.UCB1(T,rho)[0],T)
-            elif method == 'TS':
-                MC_regret += self.regret(self.TS(T)[0],T)
-        return MC_regret/N
-
+    def IDSAction(self,delta,g):
+        Q = np.zeros((self.nb_arms, self.nb_arms))
+        for a in range(self.nb_arms):
+            for ap in range(self.nb_arms):
+                da, dap = delta[a], delta[ap]
+                ga, gap = g[a], g[ap]
+                q1 = dap/(da+dap)
+                if ga!=gap:
+                    q2 = q1+2*gap/(ga-gap)
+                if 0 <= q1 <= 1:
+                    Q[a, ap] = q1
+                elif 0 <= q2 <= 1:
+                    Q[a, ap] = q2
+                elif da**2/ga > dap**2/gap:
+                    Q[a, ap] = 1
+                else:
+                    Q[a, ap] = 0
+        amin = np.argmin(Q.reshape(self.nb_arms*self.nb_arms))
+        a, ap = amin//self.nb_arms, amin % self.nb_arms
+        b = np.random.binomial(1, Q[a, ap])
+        return b*a+(1-b)*ap
 
 class BinomialMAB(GenericMAB):
     def __init__(self,p):
