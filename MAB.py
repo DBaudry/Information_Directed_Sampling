@@ -2,7 +2,7 @@
 import numpy as np
 import arms
 from tqdm import tqdm
-
+from utils import rd_argmax
 
 class GenericMAB:
     def __init__(self, method, param):
@@ -77,7 +77,7 @@ class GenericMAB:
             if t < self.nb_arms:
                 arm = t
             else:
-                arm = np.argmax(Sa/Na+rho*np.sqrt(np.log(t+1)/2/Na))
+                arm = rd_argmax(Sa/Na+rho*np.sqrt(np.log(t+1)/2/Na))
             self.update_lists(t, arm, Sa, Na, reward, arm_sequence)
         return reward, arm_sequence
 
@@ -87,7 +87,7 @@ class GenericMAB:
             if t < self.nb_arms:
                 arm = t
             else:
-                arm = np.argmax(Sa / Na + rho * np.sqrt(4/Na * np.log(max(1, T/(self.nb_arms * Na)))))
+                arm = rd_argmax(Sa / Na + rho * np.sqrt(4/Na * np.log(max(1, T/(self.nb_arms * Na)))))
             self.update_lists(t, arm, Sa, Na, reward, arm_sequence)
         return reward, arm_sequence
 
@@ -100,7 +100,7 @@ class GenericMAB:
                     theta[k] = np.random.beta(Sa[k]+1, Na[k]-Sa[k]+1)
                 else:
                     theta[k] = np.random.uniform()
-            arm = np.argmax(theta)
+            arm = rd_argmax(theta)
             self.update_lists(t, arm, Sa, Na, reward, arm_sequence)
             Sa[arm] += np.random.binomial(1, reward[t])-reward[t]
         return reward, arm_sequence
