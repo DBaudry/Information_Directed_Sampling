@@ -30,15 +30,47 @@ class GenericMAB:
 
 
     def init_lists(self, T):
+        """
+
+        :param T: number of rounds
+        :return: - Sa: Cumulated reward of arm a
+                 - Na: number of pull of arm a
+                 - reward: array of reward
+                 - Arms chosen: array of length T containing the arm choosed at each step
+        """
         return np.zeros(self.nb_arms), np.zeros(self.nb_arms), np.zeros(T), np.zeros(T)
 
     def update_lists(self, t, arm, Sa, Na, reward, arm_sequence):
-        #common sequence of instructions for all algorithms
-        Na[arm] += 1
-        arm_sequence[t] = arm
-        new_reward = self.MAB[arm].sample()
-        reward[t] = new_reward
-        Sa[arm] += new_reward
+        """
+        Update all the parameters of interest after choosing the correct arm
+        :param t: current round
+        :param arm: arm choosen at this round
+        :param Sa:  Cumulated reward array
+        :param Na:  Number of pull of arm a
+        :param reward: array of reward, reward[t] is filled
+        :param arm_sequence: array of the selected arms, arm_sequence[t] is filled
+        :return:
+        """
+        Na[arm] += 1 # Updating the number of times the arm "arm" was selected
+        arm_sequence[t] = arm # the arm "arm" was selected at round t
+        new_reward = self.MAB[arm].sample() # obtaining the new reward by pulling the arm a
+        reward[t] = new_reward  # adding this new reward to the array of rewards
+        Sa[arm] += new_reward # updating the cumulated reward of the arm "arm"
+
+    def ExploreCommit(self, m, T):
+        """
+        Explore-then-Commit algorithm as presented in Bandits Algorithms, Lattimore, Chapter 6
+        :param m: Number of rounds before choosing the best action
+        :param T: Number of steps
+        """
+        Sa, Na, reward, arm_sequence = self.init_lists(T)
+        for t in range(m*self.nb_arms):
+            arm = t % self.nb_arms
+            self.update_lists(t, arm, Sa, Na, reward, arm_sequence)
+        arm = np.argmax(Sa/Na)
+        for t in range(m*self.nb_arms + 1,T):
+            self.update_lists(t, arm, Sa, Na, reward, arm_sequence)
+        return np.array(reward), np.array(arm_sequence)
 
 
     def UCB1(self, T, rho):
