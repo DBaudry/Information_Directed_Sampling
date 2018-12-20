@@ -142,6 +142,8 @@ class BinomialMAB(GenericMAB):
         """
         BayesUCB implementation in the case of a Beta(a,b) prior on the theta parameters
         for a BinomialMAB.
+        Implementation of On Bayesian Upper Confidence Bounds for Bandit Problems, Kaufman & al,
+        from http://proceedings.mlr.press/v22/kaufmann12/kaufmann12.pdf
         :param T: number of rounds
         :param a: First parameter of the Beta prior probability distribution
         :param b: Second parameter of the Beta prior probability distribution
