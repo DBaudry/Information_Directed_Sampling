@@ -30,7 +30,6 @@ class GenericMAB:
 
 
     def init_lists(self, T):
-        # essai modif branche yo 
         return np.zeros(self.nb_arms), np.zeros(self.nb_arms), np.zeros(T), np.zeros(T)
 
     def update_lists(self, t, arm, Sa, Na, reward, arm_sequence):
