@@ -9,7 +9,7 @@ class GenericMAB:
         self.nb_arms=len(self.MAB)
         self.means=[el.mean for el in self.MAB]
         self.mu_max=np.max(self.means)
-
+        "MODIF TEST"
     @staticmethod
     def generate_arms(meth, par):
         arms_list = list()
