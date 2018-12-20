@@ -27,7 +27,7 @@ methods=['beta','B','Exp','F','Exp','beta','B']
 param=[(0.5,0.8),0.3,(0.2,1.),[np.array([0.2,0.4,0.6,0.8,1.]),np.array([1./5.]*5)],(0.3,0.9),(0.4,0.5),0.4]
 #param=[(0.5,0.5),0.5]
 
-my_MAB_2=mab.MAB(methods,param)
+my_MAB_2=mab.generic_MAB(methods,param)
 print(my_MAB_2.means)
 N2=100
 

@@ -2,7 +2,7 @@ import numpy as np
 import arms
 from tqdm import tqdm
 
-class MAB:
+class generic_MAB:
     def __init__(self,method,param):
         self.MAB=self.generate_arms(method,param)
         self.nb_arms=len(self.MAB)
@@ -58,7 +58,7 @@ class MAB:
                     theta[k]=np.random.uniform()
             arm=np.argmax(theta)
             self.update_lists(t, arm, Sa, Na, reward, arm_sequence)
-            Sa[arm]+=(np.random.uniform()<reward[t])-reward[t]
+            Sa[arm]+=np.random.binomial(1,reward[t])-reward[t]
         return np.array(reward), np.array(arm_sequence)
 
     def regret(self,reward,T):
@@ -73,7 +73,7 @@ class MAB:
                 MC_regret+=self.regret(self.TS(T)[0],T)
         return MC_regret/N
 
-class Binomial_MAB(MAB):
+class Binomial_MAB(generic_MAB):
     def __init__(self,p):
         super().__init__(method=['B']*len(p),param=p)
         self.Cp=sum([(self.mu_max-x)/self.kl(x,self.mu_max) for x in self.means if x!=self.mu_max])
