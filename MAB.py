@@ -3,6 +3,8 @@ import numpy as np
 import arms
 from tqdm import tqdm
 from utils import rd_argmax
+from scipy.stats import beta
+import scipy.integrate as integrate
 
 class GenericMAB:
     def __init__(self, method, param):
@@ -125,7 +127,8 @@ class GenericMAB:
                 da, dap = delta[a], delta[ap]
                 ga, gap = g[a], g[ap]
                 q1 = dap/(da+dap)
-                if ga!=gap:
+                q2 = -1.
+                if ga != gap:
                     q2 = q1+2*gap/(ga-gap)
                 if 0 <= q1 <= 1:
                     Q[a, ap] = q1
@@ -138,10 +141,10 @@ class GenericMAB:
         amin = np.argmin(Q.reshape(self.nb_arms*self.nb_arms))
         a, ap = amin//self.nb_arms, amin % self.nb_arms
         b = np.random.binomial(1, Q[a, ap])
-        return b*a+(1-b)*ap
+        return int(b*a+(1-b)*ap)
 
 
-class BinomialMAB(GenericMAB):
+class BetaBernoulliMAB(GenericMAB):
     def __init__(self, p):
         super().__init__(method=['B']*len(p), param=p)
         self.Cp = sum([(self.mu_max-x)/self.kl(x, self.mu_max) for x in self.means if x != self.mu_max])
@@ -162,3 +165,43 @@ class BinomialMAB(GenericMAB):
     @staticmethod
     def kl(x, y):
         return x * np.log(x/y) + (1-x) * np.log((1-x)/(1-y))
+
+    def IR(self, b1, b2):
+
+        def joint_cdf(x):
+            result = 1
+            for i in range(self.nb_arms):
+                result = result*beta.cdf(x, b1[i], b2[i])
+            return result
+
+        def G(x, a):
+            return b1[a]/(b1[a]+b2[a])*beta.cdf(x, b1[a]+1, b2[a])
+
+        def dp_star(x,a):
+            return beta.pdf(x, b1[a], b2[a])*joint_cdf(x)/beta.cdf(x, b1[a], b2[a])
+
+        def p_star(a):
+            return integrate.quad(lambda x: dp_star(x, a), 0., 1.)[0]  #result is a tuple (value, UB error)
+
+        def MAA(a, p):
+            return integrate.quad(lambda x: x*dp_star(x, a), 0., 1.)[0]/p[a]
+
+        def MAAP(a, ap, p):
+            return integrate.quad(lambda x: dp_star(x, a)*G(x, ap)/beta.cdf(x, b1[ap], b2[ap]), 0., 1.)[0]/p[a]
+
+        def g(a,p,M):
+            gp = p*(M[a]*np.log(M[a]*(b1+b2)/b1)+(1-M[a])*np.log((1-M[a])*(b1+b2)/b2))
+            return gp.sum()
+
+        ps = np.array([p_star(a) for a in range(self.nb_arms)])
+        Ma = np.array([MAA(a, ps) for a in range(self.nb_arms)])
+        Map = np.array([[MAAP(a, ap, ps) for a in range(self.nb_arms)] for ap in range(self.nb_arms)])
+        rho = (ps*Ma).sum()
+        delta = rho-b1/(b1+b2)
+        g = np.array([g(a, ps, Map) for a in range(self.nb_arms)])
+        return delta, g
+
+class FiniteMAB(GenericMAB):
+    def __init__(self, method, param, theta_space):
+        super().__init__(method, param)
+        self.theta = theta_space
