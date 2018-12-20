@@ -30,20 +30,30 @@ class generic_MAB:
     def init_lists(self,T):
         return np.zeros(self.nb_arms),np.zeros(self.nb_arms),np.zeros(T),np.zeros(T)
 
-    def update_lists(self,t,arm,Sa,Na,reward,arm_sequence): #common sequence of instructions for all algorithms
-        Na[arm]+=1
-        arm_sequence[t]=arm
-        new_reward=self.MAB[arm].sample()
-        reward[t]=new_reward
-        Sa[arm]+=new_reward
+    def update_lists(self, t, arm, Sa, Na, reward, arm_sequence): #common sequence of instructions for all algorithms
+        Na[arm] += 1
+        arm_sequence[t] = arm
+        new_reward = self.MAB[arm].sample()
+        reward[t] = new_reward
+        Sa[arm] += new_reward
 
-    def UCB1(self,T,rho):
-        Sa, Na, reward, arm_sequence=self.init_lists(T)
+    def UCB1(self, T,rho):
+        Sa, Na, reward, arm_sequence = self.init_lists(T)
         for t in range(T):
-            if t<self.nb_arms:
-                arm=t
+            if t < self.nb_arms:
+                arm = t
             else:
-                arm=np.argmax(Sa/Na+rho*np.sqrt(np.log(t+1)/2/Na))
+                arm = np.argmax(Sa/Na+rho*np.sqrt(np.log(t+1)/2/Na))
+            self.update_lists(t, arm, Sa, Na, reward, arm_sequence)
+        return np.array(reward), np.array(arm_sequence)
+
+    def MOSS(self, T, rho):
+        Sa, Na, reward, arm_sequence = self.init_lists(T)
+        for t in range(T):
+            if t < self.nb_arms:
+                arm = t
+            else:
+                arm = np.argmax(Sa / Na + rho * np.sqrt(4/Na * np.log(max(1,T/(self.nb_arms * Na)))))
             self.update_lists(t, arm, Sa, Na, reward, arm_sequence)
         return np.array(reward), np.array(arm_sequence)
 
