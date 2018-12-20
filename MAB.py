@@ -3,6 +3,8 @@ import numpy as np
 import arms
 from tqdm import tqdm
 from utils import rd_argmax
+from scipy.stats import beta
+
 
 class GenericMAB:
     def __init__(self, method, param):
@@ -133,6 +135,28 @@ class BinomialMAB(GenericMAB):
                 else:
                     theta[k] = np.random.uniform()
             arm = np.argmax(theta)
+            self.update_lists(t, arm, Sa, Na, reward, arm_sequence)
+        return reward, arm_sequence
+
+    def BayesUCB(self, T, a, b, c=0):
+        """
+        BayesUCB implementation in the case of a Beta(a,b) prior on the theta parameters
+        for a BinomialMAB.
+        :param T: number of rounds
+        :param a: First parameter of the Beta prior probability distribution
+        :param b: Second parameter of the Beta prior probability distribution
+        :param c: Parameter for the quantiles. Default value c=0
+        :return:
+        """
+        Sa, Na, reward, arm_sequence = self.init_lists(T)
+        quantiles = np.zeros(self.nb_arms)
+        for t in range(T):
+            for k in range(self.nb_arms):
+                if Na[k] >= 1:
+                    quantiles[k] = beta.ppf(1-1/(t*np.log(T)**c), Sa[k] + a, b + Na[k] - Sa[k])
+                else:
+                    quantiles[k] = beta.ppf(1-1/(t*np.log(T)**c), a, b)
+            arm = np.argmax(quantiles)
             self.update_lists(t, arm, Sa, Na, reward, arm_sequence)
         return reward, arm_sequence
 
