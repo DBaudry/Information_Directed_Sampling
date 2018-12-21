@@ -28,19 +28,17 @@ class GenericMAB:
                 raise NameError('This method is not implemented, available methods are defined in generate_arms method')
         return arms_list
 
-
     def init_lists(self, T):
         # essai modif branche yo 
         return np.zeros(self.nb_arms), np.zeros(self.nb_arms), np.zeros(T), np.zeros(T)
 
     def update_lists(self, t, arm, Sa, Na, reward, arm_sequence):
-        #common sequence of instructions for all algorithms
+        #  common sequence of instructions for all algorithms
         Na[arm] += 1
         arm_sequence[t] = arm
         new_reward = self.MAB[arm].sample()
         reward[t] = new_reward
         Sa[arm] += new_reward
-
 
     def UCB1(self, T, rho):
         Sa, Na, reward, arm_sequence = self.init_lists(T)
@@ -52,7 +50,6 @@ class GenericMAB:
             self.update_lists(t, arm, Sa, Na, reward, arm_sequence)
         return np.array(reward), np.array(arm_sequence)
 
-
     def MOSS(self, T, rho):
         Sa, Na, reward, arm_sequence = self.init_lists(T)
         for t in range(T):
@@ -62,7 +59,6 @@ class GenericMAB:
                 arm = np.argmax(Sa / Na + rho * np.sqrt(4/Na * np.log(max(1,T/(self.nb_arms * Na)))))
             self.update_lists(t, arm, Sa, Na, reward, arm_sequence)
         return np.array(reward), np.array(arm_sequence)
-
 
     def TS(self,T):
         Sa, Na, reward, arm_sequence = self.init_lists(T)
@@ -78,10 +74,8 @@ class GenericMAB:
             Sa[arm] += np.random.binomial(1,reward[t])-reward[t]
         return np.array(reward), np.array(arm_sequence)
 
-
     def regret(self, reward, T):
         return self.mu_max * np.arange(1,T+1) - np.cumsum(reward)
-
 
     def MC_regret(self,method, N, T,rho=0.2):
         MC_regret = np.zeros(T)
