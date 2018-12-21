@@ -63,7 +63,7 @@ class GenericMAB:
             elif method == 'TS':
                 MC_regret += self.regret(self.TS(T)[0], T)
         return MC_regret / N
-
+      
     def init_lists(self, T):
         """
         :param T: number of rounds
@@ -116,6 +116,7 @@ class GenericMAB:
             self.update_lists(t, arm, Sa, Na, reward, arm_sequence)
         return reward, arm_sequence
 
+
     def MOSS(self, T, rho):
         """
         Implementation of the Minimax Optimal Strategy in the Stochastic case (MOSS).
@@ -133,7 +134,7 @@ class GenericMAB:
             self.update_lists(t, arm, Sa, Na, reward, arm_sequence)
         return reward, arm_sequence
 
-    def TS(self, T):
+    def TS(self,T):
         """
         Implementation of the Thomson Sampling algorithm
         :param T: number of rounds
@@ -151,6 +152,7 @@ class GenericMAB:
             self.update_lists(t, arm, Sa, Na, reward, arm_sequence)
             Sa[arm] += np.random.binomial(1, reward[t])-reward[t]
         return reward, arm_sequence
+
 
     def IDSAction(self,delta,g):
         Q = np.zeros((self.nb_arms, self.nb_arms))
