@@ -15,6 +15,12 @@ class GenericMAB:
 
     @staticmethod
     def generate_arms(meth, par):
+        """
+        Method for generating different arms
+        :param meth: Probability distribution used for the arm
+        :param par: Parameters for the probability distribution of all the different arms
+        :return:
+        """
         arms_list = list()
         for i, m in enumerate(meth):
             print(i, m, par[i])
@@ -97,6 +103,13 @@ class GenericMAB:
         return reward, arm_sequence
 
     def MOSS(self, T, rho):
+        """
+        Implementation of the Minimax Optimal Strategy in the Stochastic case (MOSS).
+        Further details for the algorithm can be found in the chapter 9 of Bandits Algorithm (Tor Lattimore et al.)
+        :param T: Number of rounds
+        :param rho: Parameter for balancing between exploration and exploitation
+        :return: Reward obtained by the policy and sequence of the arms choosed
+        """
         Sa, Na, reward, arm_sequence = self.init_lists(T)
         for t in range(T):
             if t < self.nb_arms:
@@ -107,6 +120,11 @@ class GenericMAB:
         return reward, arm_sequence
 
     def TS(self, T):
+        """
+        Implementation of the Thomson Sampling algorithm
+        :param T: number of rounds
+        :return: Reward obtained by the policy and sequence of the arms choosed
+        """
         Sa, Na, reward, arm_sequence = self.init_lists(T)
         theta = np.zeros(self.nb_arms)
         for t in range(T):
@@ -119,6 +137,33 @@ class GenericMAB:
             self.update_lists(t, arm, Sa, Na, reward, arm_sequence)
             Sa[arm] += np.random.binomial(1, reward[t])-reward[t]
         return reward, arm_sequence
+
+
+    def regret(self, reward, T):
+        """
+        Computing the regret of a single experiment.
+        :param reward: The array of reward the policy was able to receive by selecting the different actions
+        :param T: Number of rounds
+        :return: Cumulated regret for a single experiment
+        """
+        return self.mu_max * np.arange(1, T+1) - np.cumsum(reward)
+
+    def MC_regret(self, method, N, T, rho=0.2):
+        """
+        Monte Carlo method for approximating the expectation of the regret.
+        :param method: Method used (UCB, Thomson Sampling, etc..)
+        :param N: Number of independent experiments used for the Monte Carlo
+        :param T: Number of rounds for each experiment
+        :param rho: Useful parameter for the UCB policy
+        :return: Averaged regret over N independent experiments
+        """
+        MC_regret = np.zeros(T)
+        for _ in tqdm(range(N), desc='Computing ' + str(N) + ' simulations'):
+            if method == 'UCB1':
+                MC_regret += self.regret(self.UCB1(T, rho)[0], T)
+            elif method == 'TS':
+                MC_regret += self.regret(self.TS(T)[0], T)
+        return MC_regret/N
 
     def IDSAction(self,delta,g):
         Q = np.zeros((self.nb_arms, self.nb_arms))
@@ -150,6 +195,11 @@ class BetaBernoulliMAB(GenericMAB):
         self.Cp = sum([(self.mu_max-x)/self.kl(x, self.mu_max) for x in self.means if x != self.mu_max])
 
     def TS(self, T):
+        """
+        Implementation of the Thomson Sampling algorithm
+        :param T: number of rounds
+        :return: Reward obtained by the policy and sequence of the arms choosed
+        """
         Sa, Na, reward, arm_sequence = self.init_lists(T)
         theta = np.zeros(self.nb_arms)
         for t in range(T):
@@ -172,7 +222,7 @@ class BetaBernoulliMAB(GenericMAB):
         :param a: First parameter of the Beta prior probability distribution
         :param b: Second parameter of the Beta prior probability distribution
         :param c: Parameter for the quantiles. Default value c=0
-        :return:
+        :return: Reward obtained by the policy and sequence of the arms choosed
         """
         Sa, Na, reward, arm_sequence = self.init_lists(T)
         quantiles = np.zeros(self.nb_arms)
@@ -188,6 +238,9 @@ class BetaBernoulliMAB(GenericMAB):
 
     @staticmethod
     def kl(x, y):
+        """
+        Implementation of the Kullback-Leibler divergence
+        """
         return x * np.log(x/y) + (1-x) * np.log((1-x)/(1-y))
 
     def IR(self, b1, b2):
