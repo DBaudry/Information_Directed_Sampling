@@ -107,6 +107,12 @@ class GenericMAB:
         return reward, arm_sequence
 
     def UCB1(self, T, rho):
+        """
+        Implementation of the UCB1 algorithm
+        :param T: Number of rounds
+        :param rho: Parameter for balancing between exploration and exploitation
+        :return: Reward obtained by the policy and sequence of the arms choosed
+        """
         Sa, Na, reward, arm_sequence = self.init_lists(T)
         for t in range(T):
             if t < self.nb_arms:
