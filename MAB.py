@@ -62,7 +62,7 @@ class GenericMAB:
                 MC_regret += self.regret(self.UCB1(T, rho)[0], T)
             elif method == 'TS':
                 MC_regret += self.regret(self.TS(T)[0], T)
-        return self.mu_max * np.arange(1,T+1) - np.cumsum(reward)
+        return MC_regret / N
 
     def init_lists(self, T):
         """
@@ -152,30 +152,6 @@ class GenericMAB:
             Sa[arm] += np.random.binomial(1, reward[t])-reward[t]
         return reward, arm_sequence
 
-      
-    def IDSAction(self, delta, g):
-        Q = np.zeros((self.nb_arms, self.nb_arms))
-        for a in range(self.nb_arms):
-            for ap in range(self.nb_arms):
-                da, dap = delta[a], delta[ap]
-                ga, gap = g[a], g[ap]
-                q1 = dap/(da+dap)
-                q2 = -1.
-                if ga != gap:
-                    q2 = q1 + 2*gap/(ga-gap)
-                if 0 <= q1 <= 1:
-                    Q[a, ap] = q1
-                elif 0 <= q2 <= 1:
-                    Q[a, ap] = q2
-                elif da**2/ga > dap**2/gap:
-                    Q[a, ap] = 1
-                else:
-                    Q[a, ap] = 0
-        amin = np.argmin(Q.reshape(self.nb_arms*self.nb_arms))
-        a, ap = amin//self.nb_arms, amin % self.nb_arms
-        b = np.random.binomial(1, Q[a, ap])
-        return int(b*a+(1-b)*ap)
-
     def IDSAction(self,delta,g):
         Q = np.zeros((self.nb_arms, self.nb_arms))
         for a in range(self.nb_arms):
@@ -198,6 +174,7 @@ class GenericMAB:
         a, ap = amin//self.nb_arms, amin % self.nb_arms
         b = np.random.binomial(1, Q[a, ap])
         return int(b*a+(1-b)*ap)
+
 
 class BetaBernoulliMAB(GenericMAB):
     def __init__(self, p):
