@@ -122,7 +122,6 @@ class GenericMAB:
             self.update_lists(t, arm, Sa, Na, reward, arm_sequence)
         return reward, arm_sequence
 
-
     def MOSS(self, T, rho):
         """
         Implementation of the Minimax Optimal Strategy in the Stochastic case (MOSS).
