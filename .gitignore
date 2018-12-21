@@ -1,2 +1,4 @@
 # Prerequisites
 *.d
+*.xml
+.idea/
