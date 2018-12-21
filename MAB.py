@@ -63,7 +63,7 @@ class GenericMAB:
             elif method == 'TS':
                 MC_regret += self.regret(self.TS(T)[0], T)
         return MC_regret / N
-
+      
     def init_lists(self, T):
         """
         :param T: number of rounds
@@ -107,6 +107,12 @@ class GenericMAB:
         return reward, arm_sequence
 
     def UCB1(self, T, rho):
+        """
+        Implementation of the UCB1 algorithm
+        :param T: Number of rounds
+        :param rho: Parameter for balancing between exploration and exploitation
+        :return: Reward obtained by the policy and sequence of the arms choosed
+        """
         Sa, Na, reward, arm_sequence = self.init_lists(T)
         for t in range(T):
             if t < self.nb_arms:
@@ -115,6 +121,7 @@ class GenericMAB:
                 arm = rd_argmax(Sa/Na+rho*np.sqrt(np.log(t+1)/2/Na))
             self.update_lists(t, arm, Sa, Na, reward, arm_sequence)
         return reward, arm_sequence
+
 
     def MOSS(self, T, rho):
         """
@@ -162,7 +169,6 @@ class GenericMAB:
                 arm = np.argmax(Sa / Na + (T - t) * v)
             self.update_lists(t, arm, Sa, Na, reward, arm_sequence)
         return np.array(reward), np.array(arm_sequence)
-
 
     def TS(self, T):
         """
