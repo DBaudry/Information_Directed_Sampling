@@ -6,6 +6,7 @@ from utils import rd_argmax
 from scipy.stats import beta
 import scipy.integrate as integrate
 
+
 class GenericMAB:
     def __init__(self, method, param):
         self.MAB = self.generate_arms(method, param)
@@ -38,16 +39,29 @@ class GenericMAB:
         return arms_list
 
     def regret(self, reward, T):
-        return self.mu_max * np.arange(1,T+1) - np.cumsum(reward)
+        """
+        Computing the regret of a single experiment.
+        :param reward: The array of reward the policy was able to receive by selecting the different actions
+        :param T: Number of rounds
+        :return: Cumulated regret for a single experiment
+        """
+        return self.mu_max * np.arange(1, T+1) - np.cumsum(reward)
 
-
-    def MC_regret(self,method, N, T,rho=0.2):
+    def MC_regret(self, method, N, T, rho=0.2):
+        """
+        Monte Carlo method for approximating the expectation of the regret.
+        :param method: Method used (UCB, Thomson Sampling, etc..)
+        :param N: Number of independent experiments used for the Monte Carlo
+        :param T: Number of rounds for each experiment
+        :param rho: Useful parameter for the UCB policy
+        :return: Averaged regret over N independent experiments
+        """
         MC_regret = np.zeros(T)
         for _ in tqdm(range(N), desc='Computing ' + str(N) + ' simulations'):
             if method == 'UCB1':
-                MC_regret += self.regret(self.UCB1(T,rho)[0],T)
+                MC_regret += self.regret(self.UCB1(T, rho)[0], T)
             elif method == 'TS':
-                MC_regret += self.regret(self.TS(T)[0],T)
+                MC_regret += self.regret(self.TS(T)[0], T)
         return MC_regret/N
 
     def init_lists(self, T):
@@ -138,34 +152,7 @@ class GenericMAB:
             Sa[arm] += np.random.binomial(1, reward[t])-reward[t]
         return reward, arm_sequence
 
-<<<<<<< HEAD
-    def regret(self, reward, T):
-        """
-        Computing the regret of a single experiment.
-        :param reward: The array of reward the policy was able to receive by selecting the different actions
-        :param T: Number of rounds
-        :return: Cumulated regret for a single experiment
-        """
-        return self.mu_max * np.arange(1, T+1) - np.cumsum(reward)
-
-    def MC_regret(self, method, N, T, rho=0.2):
-        """
-        Monte Carlo method for approximating the expectation of the regret.
-        :param method: Method used (UCB, Thomson Sampling, etc..)
-        :param N: Number of independent experiments used for the Monte Carlo
-        :param T: Number of rounds for each experiment
-        :param rho: Useful parameter for the UCB policy
-        :return: Averaged regret over N independent experiments
-        """
-        MC_regret = np.zeros(T)
-        for _ in tqdm(range(N), desc='Computing ' + str(N) + ' simulations'):
-            if method == 'UCB1':
-                MC_regret += self.regret(self.UCB1(T, rho)[0], T)
-            elif method == 'TS':
-                MC_regret += self.regret(self.TS(T)[0], T)
-        return MC_regret/N
-=======
-    def IDSAction(self,delta,g):
+    def IDSAction(self, delta, g):
         Q = np.zeros((self.nb_arms, self.nb_arms))
         for a in range(self.nb_arms):
             for ap in range(self.nb_arms):
@@ -174,7 +161,7 @@ class GenericMAB:
                 q1 = dap/(da+dap)
                 q2 = -1.
                 if ga != gap:
-                    q2 = q1+2*gap/(ga-gap)
+                    q2 = q1 + 2*gap/(ga-gap)
                 if 0 <= q1 <= 1:
                     Q[a, ap] = q1
                 elif 0 <= q2 <= 1:
@@ -187,7 +174,6 @@ class GenericMAB:
         a, ap = amin//self.nb_arms, amin % self.nb_arms
         b = np.random.binomial(1, Q[a, ap])
         return int(b*a+(1-b)*ap)
->>>>>>> a13b1b938bb4ee53b73d517d0546787d7d1703d3
 
 
 class BetaBernoulliMAB(GenericMAB):
@@ -255,11 +241,11 @@ class BetaBernoulliMAB(GenericMAB):
         def G(x, a):
             return b1[a]/(b1[a]+b2[a])*beta.cdf(x, b1[a]+1, b2[a])
 
-        def dp_star(x,a):
+        def dp_star(x, a):
             return beta.pdf(x, b1[a], b2[a])*joint_cdf(x)/beta.cdf(x, b1[a], b2[a])
 
         def p_star(a):
-            return integrate.quad(lambda x: dp_star(x, a), 0., 1.)[0]  #result is a tuple (value, UB error)
+            return integrate.quad(lambda x: dp_star(x, a), 0., 1.)[0]  # result is a tuple (value, UB error)
 
         def MAA(a, p):
             return integrate.quad(lambda x: x*dp_star(x, a), 0., 1.)[0]/p[a]
@@ -267,17 +253,19 @@ class BetaBernoulliMAB(GenericMAB):
         def MAAP(a, ap, p):
             return integrate.quad(lambda x: dp_star(x, a)*G(x, ap)/beta.cdf(x, b1[ap], b2[ap]), 0., 1.)[0]/p[a]
 
-        def g(a,p,M):
+        def g(a, p, M):
             gp = p*(M[a]*np.log(M[a]*(b1+b2)/b1)+(1-M[a])*np.log((1-M[a])*(b1+b2)/b2))
             return gp.sum()
 
-        ps = np.array([p_star(a) for a in range(self.nb_arms)])
-        Ma = np.array([MAA(a, ps) for a in range(self.nb_arms)])
-        Map = np.array([[MAAP(a, ap, ps) for a in range(self.nb_arms)] for ap in range(self.nb_arms)])
-        rho = (ps*Ma).sum()
-        delta = rho-b1/(b1+b2)
-        g = np.array([g(a, ps, Map) for a in range(self.nb_arms)])
-        return delta, g
+        # To be completed
+        # ps = np.array([p_star(a) for a in range(self.nb_arms)])
+        # Ma = np.array([MAA(a, ps) for a in range(self.nb_arms)])
+        # Map = np.array([[MAAP(a, ap, ps) for a in range(self.nb_arms)] for ap in range(self.nb_arms)])
+        # rho = (ps*Ma).sum()
+        # delta = rho-b1/(b1+b2)
+        # g = np.array([g(a, ps, Map) for a in range(self.nb_arms)])
+        # return delta, g
+
 
 class FiniteMAB(GenericMAB):
     def __init__(self, method, param, theta_space):
