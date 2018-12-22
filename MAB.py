@@ -49,7 +49,7 @@ class GenericMAB:
         """
         return self.mu_max * np.arange(1, T+1) - np.cumsum(reward)
 
-    def MC_regret(self, method, N, T, rho=0.2):
+    def MC_regret(self, method, N, T, param=0.2):
         """
         Monte Carlo method for approximating the expectation of the regret.
         :param method: Method used (UCB, Thomson Sampling, etc..)
@@ -60,10 +60,22 @@ class GenericMAB:
         """
         MC_regret = np.zeros(T)
         for _ in tqdm(range(N), desc='Computing ' + str(N) + ' simulations'):
-            if method == 'UCB1':
-                MC_regret += self.regret(self.UCB1(T, rho)[0], T)
+            if method == 'RandomPolicy':
+                MC_regret+=self.regret(self.RandomPolicy(T)[0], T)
+            elif method == 'UCB1':
+                MC_regret += self.regret(self.UCB1(T, param)[0], T)
             elif method == 'TS':
                 MC_regret += self.regret(self.TS(T)[0], T)
+            elif method == 'IDS':
+                MC_regret += self.regret(self.IDS(T)[0], T)
+            elif method == 'MOSS':
+                MC_regret += self.regret(self.MOSS(T, param)[0], T)
+            elif method == 'KG':
+                MC_regret += self.regret(self.KG(T)[0], T)
+            elif method == 'ExploreCommit':
+                MC_regret += self.regret(self.ExploreCommit(m=param, T=T)[0], T)
+            else:
+                raise NotImplementedError
         return MC_regret / N
       
     def init_lists(self, T):
@@ -151,7 +163,9 @@ class GenericMAB:
             if t < self.nb_arms:
                 arm = t
             else:
-                arm = rd_argmax(Sa / Na + rho * np.sqrt(4/Na * np.log(max(1, T/(self.nb_arms * Na)))))
+                # arm = rd_argmax(Sa / Na + rho * np.sqrt(4/Na * np.log(max(1, T/(self.nb_arms * Na)))))
+                root_term = np.array(list(map(lambda x: max(x, 1), T/(self.nb_arms * Na))))
+                arm = rd_argmax(Sa/Na+rho*np.sqrt(4/Na*np.log(root_term)))
             self.update_lists(t, arm, Sa, Na, reward, arm_sequence)
         return reward, arm_sequence
 
@@ -180,7 +194,7 @@ class GenericMAB:
                     [(Sa / Na)[i] - np.max(list(Sa / Na)[:i] + list(Sa / Na)[i + 1:]) for i in range(self.nb_arms)])
                 v = rmse * self.kgf(-np.absolute(x / (rmse + 10e-9)))
                 # print(v)
-                print(Sa / Na + (T - t) * v)
+                # print(Sa / Na + (T - t) * v)
                 arm = np.argmax(Sa / Na + (T - t) * v)
             self.update_lists(t, arm, Sa, Na, reward, arm_sequence)
         return np.array(reward), np.array(arm_sequence)
@@ -226,6 +240,9 @@ class GenericMAB:
         a, ap = amin//self.nb_arms, amin % self.nb_arms
         b = np.random.binomial(1, Q[a, ap])
         return int(b*a+(1-b)*ap)
+
+    def IDS(self, T):
+        raise NotImplementedError
 
 
 class BetaBernoulliMAB(GenericMAB):
@@ -283,7 +300,12 @@ class BetaBernoulliMAB(GenericMAB):
         return x * np.log(x/y) + (1-x) * np.log((1-x)/(1-y))
 
     def IR(self, b1, b2):
-
+        """
+        Implementation of the Information Ratio for bernoulli bandits with beta prior
+        :param b1: list, first parameter of the beta distribution for each arm
+        :param b2: list, second parameter of the beta distribution for each arm
+        :return: the two components of the Information ration delta and g
+        """
         def joint_cdf(x):
             result = 1
             for i in range(self.nb_arms):
@@ -309,14 +331,30 @@ class BetaBernoulliMAB(GenericMAB):
             gp = p*(M[a]*np.log(M[a]*(b1+b2)/b1)+(1-M[a])*np.log((1-M[a])*(b1+b2)/b2))
             return gp.sum()
 
-        # To be completed
-        # ps = np.array([p_star(a) for a in range(self.nb_arms)])
-        # Ma = np.array([MAA(a, ps) for a in range(self.nb_arms)])
-        # Map = np.array([[MAAP(a, ap, ps) for a in range(self.nb_arms)] for ap in range(self.nb_arms)])
-        # rho = (ps*Ma).sum()
-        # delta = rho-b1/(b1+b2)
-        # g = np.array([g(a, ps, Map) for a in range(self.nb_arms)])
-        # return delta, g
+        ps = np.array([p_star(a) for a in range(self.nb_arms)])
+        ma = np.array([MAA(a, ps) for a in range(self.nb_arms)])
+        maap = np.array([[MAAP(a, ap, ps) for a in range(self.nb_arms)] for ap in range(self.nb_arms)])
+        rho = (ps*ma).sum()
+        delta = rho-b1/(b1+b2)
+        g = np.array([g(a, ps, maap) for a in range(self.nb_arms)])
+        return delta, g
+
+    def IDS(self, T):
+        """
+        Implementation of the Thomson Sampling algorithm
+        :param T: number of rounds
+        :return: Reward obtained by the policy and sequence of the arms choosed
+        """
+        Sa, Na, reward, arm_sequence = self.init_lists(T)
+        beta_1 = np.zeros(self.nb_arms)+1.
+        beta_2 = np.zeros(self.nb_arms)+1.
+        for t in tqdm(range(T)):
+            delta, g = self.IR(beta_1, beta_2)
+            arm = rd_argmax(delta**2/g)
+            self.update_lists(t, arm, Sa, Na, reward, arm_sequence)
+            beta_1[arm] += reward[t]
+            beta_2[arm] += 1-reward[t]
+        return reward, arm_sequence
 
 
 class FiniteMAB(GenericMAB):
