@@ -5,19 +5,21 @@ import matplotlib.pyplot as plt
 
 p1 = [0.05, 0.4, 0.7, 0.90]
 p2 = [0.25, 0.27, 0.32, 0.40, 0.42]
-N1 = 50 
+N1 = 50
+T = 1000
 plt.figure(1)
 for i, p in enumerate([p1,p2]):
     my_MAB=mab.BetaBernoulliMAB(p)
     print(my_MAB.MAB)
     print(my_MAB.Cp)
     plt.subplot(121+i)
-    plt.plot(my_MAB.MC_regret(method='RandomPolicy', N=N1, T=1000, param=0.2), label='Random')
-    plt.plot(my_MAB.MC_regret(method='ExploreCommit', N=N1, T=1000, param=5), label='Explore Commit')
-    plt.plot(my_MAB.MC_regret(method='UCB1', N=N1, T=1000, param=0.2), label='UCB1')
-    plt.plot(my_MAB.MC_regret(method='TS', N=N1, T=1000), label='TS')
-    plt.plot(my_MAB.MC_regret(method='KG', N=N1, T=1000), label='KG')
-    plt.plot(my_MAB.MC_regret(method='MOSS', N=N1, T=1000, param=0.2), label='MOSS')
+    plt.plot(my_MAB.MC_regret(method='RandomPolicy', N=N1, T=T, param=0.2), label='Random')
+    plt.plot(my_MAB.MC_regret(method='ExploreCommit', N=N1, T=T, param=5), label='Explore Commit')
+    plt.plot(my_MAB.MC_regret(method='UCB1', N=N1, T=T, param=0.2), label='UCB1')
+    plt.plot(my_MAB.MC_regret(method='TS', N=N1, T=T), label='TS')
+    plt.plot(my_MAB.MC_regret(method='KG', N=N1, T=T), label='KG')
+    plt.plot(my_MAB.MC_regret(method='MOSS', N=N1, T=T, param=0.2), label='MOSS')
+    #plt.plot(my_MAB.MC_regret(method='IDS', N=N1, T=T), label='IDS')
     #plt.plot(my_MAB.Cp*np.log(np.arange(1,1001)))
     plt.ylabel('Cumulative Regret')
     plt.xlabel('Rounds')
