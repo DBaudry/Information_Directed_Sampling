@@ -4,7 +4,9 @@ import arms
 from tqdm import tqdm
 from utils import rd_argmax
 from scipy.stats import beta
+import random
 import scipy.integrate as integrate
+
 
 
 class GenericMAB:
@@ -83,19 +85,33 @@ class GenericMAB:
         :param Na:  Number of pull of arm a
         :param reward: array of reward, reward[t] is filled
         :param arm_sequence: array of the selected arms, arm_sequence[t] is filled
-        :return:
+        :return: Nothing but update the parameters of interest
         """
         Na[arm] += 1  # Updating the number of times the arm "arm" was selected
         arm_sequence[t] = arm  # the arm "arm" was selected at round t
         new_reward = self.MAB[arm].sample()  # obtaining the new reward by pulling the arm a
         reward[t] = new_reward  # adding this new reward to the array of rewards
-        Sa[arm] += new_reward  # updating the cumulated reward of the arm "arm"
+        Sa[arm] += new_reward  # updating the cumulative reward of the arm "arm"
+
+    def RandomPolicy(self, T):
+        """
+        Implementation of a random policy consisting in randomly choosing one of the available arms.
+        Only useful for checking that the behavior of the different policies is normal
+        :param T:  Number of rounds
+        :return: Reward obtained by the policy and sequence of the arms choosed
+        """
+        Sa, Na, reward, arm_sequence = self.init_lists(T)
+        for t in range(T):
+            arm = random.randint(0, self.nb_arms-1)
+            self.update_lists(t, arm, Sa, Na, reward, arm_sequence)
+        return reward, arm_sequence
 
     def ExploreCommit(self, m, T):
         """
         Explore-then-Commit algorithm as presented in Bandits Algorithms, Lattimore, Chapter 6
         :param m: Number of rounds before choosing the best action
         :param T: Number of steps
+        :return: Reward obtained by the policy and sequence of the arms choosed
         """
         Sa, Na, reward, arm_sequence = self.init_lists(T)
         for t in range(m*self.nb_arms):
