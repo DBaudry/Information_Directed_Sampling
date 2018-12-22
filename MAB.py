@@ -61,7 +61,7 @@ class GenericMAB:
         MC_regret = np.zeros(T)
         for _ in tqdm(range(N), desc='Computing ' + str(N) + ' simulations'):
             if method == 'RandomPolicy':
-                MC_regret+=self.regret(self.RandomPolicy(T)[0], T)
+                MC_regret += self.regret(self.RandomPolicy(T)[0], T)
             elif method == 'UCB1':
                 MC_regret += self.regret(self.UCB1(T, param)[0], T)
             elif method == 'TS':
@@ -74,6 +74,8 @@ class GenericMAB:
                 MC_regret += self.regret(self.KG(T)[0], T)
             elif method == 'ExploreCommit':
                 MC_regret += self.regret(self.ExploreCommit(m=param, T=T)[0], T)
+            elif method == 'BayesUCB':
+                MC_regret += self.regret(self.BayesUCB(T=T, a=1., b=1., c=0.)[0], T)
             else:
                 raise NotImplementedError
         return MC_regret / N
@@ -244,6 +246,8 @@ class GenericMAB:
     def IDS(self, T):
         raise NotImplementedError
 
+    def BayesUCB(self, T, a, b, c=0.):
+        raise NotImplementedError
 
 class BetaBernoulliMAB(GenericMAB):
     def __init__(self, p):
