@@ -341,7 +341,7 @@ class BetaBernoulliMAB(GenericMAB):
 
     def IDS(self, T):
         """
-        Implementation of the Thomson Sampling algorithm
+        Implementation of the Information Directed Sampling for Beta-Bernoulli bandits
         :param T: number of rounds
         :return: Reward obtained by the policy and sequence of the arms choosed
         """
