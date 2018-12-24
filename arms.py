@@ -11,7 +11,6 @@ class AbstractArm(object):
         """
         self.mean = mean
         self.variance = variance
-
         self.local_random = np.random.RandomState(random_state)
 
     def sample(self):
@@ -46,8 +45,8 @@ class ArmBeta(AbstractArm):
         """
         self.a = a
         self.b = b
-        super(ArmBeta, self).__init__(mean=a / (a + b),
-                                      variance=(a * b) / ((a + b) ** 2 * (a + b + 1)),
+        super(ArmBeta, self).__init__(mean=a/(a + b),
+                                      variance=(a * b)/((a + b) ** 2 * (a + b + 1)),
                                       random_state=random_state)
 
     def sample(self):
