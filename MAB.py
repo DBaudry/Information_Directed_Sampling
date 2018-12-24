@@ -384,7 +384,7 @@ class BetaBernoulliMAB(GenericMAB):
                             v[a] = mu[a]*mu_up+(1-mu[a])*Vt
                     else:
                         v[a] = Vt*mu_up+(1-Vt)*max([mu_down, max([mu[ap] for ap in range(self.nb_arms) if ap != a])])
-                arm = np.argmax(Sa / Na + (T - t) * v)
+                arm = rd_argmax(Sa / Na + (T - t) * v)
             self.update_lists(t, arm, Sa, Na, reward, arm_sequence)
         return reward, arm_sequence
 
