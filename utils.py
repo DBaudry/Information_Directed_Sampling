@@ -8,3 +8,4 @@ def rd_argmax(vector):
     m = np.amax(vector)
     indices = np.nonzero(vector == m)[0]
     return rd.choice(indices)
+

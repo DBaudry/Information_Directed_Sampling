@@ -49,23 +49,31 @@ class GenericMAB:
         """
         return self.mu_max * np.arange(1, T+1) - np.cumsum(reward)
 
-    def MC_regret(self, method, N, T, rho=0.2):
+    def MC_regret(self, method, N, T, param=0.2):
         """
         Monte Carlo method for approximating the expectation of the regret.
         :param method: Method used (UCB, Thomson Sampling, etc..)
-        :param N: Number of independent experiments used for the Monte Carlo
-        :param T: Number of rounds for each experiment
-        :param rho: Useful parameter for the UCB policy
-        :return: Averaged regret over N independent experiments
         """
         MC_regret = np.zeros(T)
         for _ in tqdm(range(N), desc='Computing ' + str(N) + ' simulations'):
-            if method == 'UCB1':
-                MC_regret += self.regret(self.UCB1(T, rho)[0], T)
+            if method == 'RandomPolicy':
+                MC_regret += self.regret(self.RandomPolicy(T)[0], T)
+            elif method == 'UCB1':
+                MC_regret += self.regret(self.UCB1(T, param)[0], T)
             elif method == 'TS':
                 MC_regret += self.regret(self.TS(T)[0], T)
+            elif method == 'IDS':
+                MC_regret += self.regret(self.IDS(T)[0], T)
+            elif method == 'MOSS':
+                MC_regret += self.regret(self.MOSS(T, param)[0], T)
+            elif method == 'KG':
+                MC_regret += self.regret(self.KG(T)[0], T)
+            elif method == 'ExploreCommit':
+                MC_regret += self.regret(self.ExploreCommit(m=param, T=T)[0], T)
+            else:
+                raise NotImplementedError
         return MC_regret / N
-      
+
     def init_lists(self, T):
         """
         :param T: number of rounds
@@ -151,7 +159,9 @@ class GenericMAB:
             if t < self.nb_arms:
                 arm = t
             else:
-                arm = rd_argmax(Sa / Na + rho * np.sqrt(4/Na * np.log(max(1, T/(self.nb_arms * Na)))))
+                # arm = rd_argmax(Sa / Na + rho * np.sqrt(4/Na * np.log(max(1, T/(self.nb_arms * Na)))))
+                root_term = np.array(list(map(lambda x: max(x, 1), T / (self.nb_arms * Na))))
+                arm = rd_argmax(Sa / Na + rho * np.sqrt(4 / Na * np.log(root_term)))
             self.update_lists(t, arm, Sa, Na, reward, arm_sequence)
         return reward, arm_sequence
 
@@ -204,7 +214,7 @@ class GenericMAB:
             Sa[arm] += np.random.binomial(1, reward[t])-reward[t]
         return reward, arm_sequence
 
-    def IDSAction(self,delta,g):
+    def IDSAction(self, delta, g):
         Q = np.zeros((self.nb_arms, self.nb_arms))
         for a in range(self.nb_arms):
             for ap in range(self.nb_arms):
@@ -229,6 +239,10 @@ class GenericMAB:
 
 
 class BetaBernoulliMAB(GenericMAB):
+    """
+    TODO: checker avec DODO mais pour moi c'est bien une distribution Bernouilli sur les bras avec un prior Beta dans
+    le cas bayésien
+    """
     def __init__(self, p):
         super().__init__(method=['B']*len(p), param=p)
         self.Cp = sum([(self.mu_max-x)/self.kl(x, self.mu_max) for x in self.means if x != self.mu_max])
