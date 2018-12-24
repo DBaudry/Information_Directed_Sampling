@@ -381,7 +381,7 @@ class BetaBernoulliMAB(GenericMAB):
                         if mu_up <= Vt:
                             v[a] = 0
                         else:
-                            v[a] = mu[a]*mu_up+(1-mu[a])*Vt
+                            v[a] = mu[a] * mu_up + (1-mu[a])*Vt
                     else:
                         v[a] = Vt*mu_up+(1-Vt)*max([mu_down, max([mu[ap] for ap in range(self.nb_arms) if ap != a])])
                 arm = rd_argmax(Sa / Na + (T - t) * v)
