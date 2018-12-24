@@ -8,7 +8,6 @@ from scipy.stats import beta, norm
 import scipy.integrate as integrate
 
 
-
 class GenericMAB:
     def __init__(self, method, param):
         self.MAB = self.generate_arms(method, param)
