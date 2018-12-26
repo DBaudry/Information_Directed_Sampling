@@ -384,25 +384,115 @@ class BetaBernoulliMAB(GenericMAB):
 
 
 class FiniteSets(GenericMAB):
-    def __init__(self, method, param, q_theta,R):
+    def __init__(self, method, param, q_theta, prior, R):
         '''
         theta in [1,L], Y in [1,N], A in [1,K]
         :param method: list with the types for each arm
         :param param: list with the parameters for each arm
-        :param q_theta: K*L*N array with the probability of each outcome knowing theta
+        :param q_theta: L*K*N array with the probability of each outcome knowing theta
         :param R: mapping between outcomes and rewards
         '''
         super().__init__(method, param)
+        self.means = [(R*p[1]).sum() for p in param]
+        self.mu_max = max(self.means)
         self.q_theta = q_theta
+        self.prior = prior
         self.R = R
-        self.K = q_theta.shape[0]
-        self.L = q_theta.shape[1]
+        self.nb_arms = q_theta.shape[1]
+        self.L = q_theta.shape[0]
         self.N = q_theta.shape[2]
+        self.Ta = self.get_theta_a()
 
     def get_theta_a(self):
-        theta_a = [[] for a in range(self.nb_arms)]
+        '''
+        :return: list of length K containing the lists of theta for which action a in [1,K] is optimal
+        '''
+        Ta = [[] for a in range(self.nb_arms)]
         for theta in range(self.L):
-            self.q_theta = 0
+            a_theta = rd_argmax(np.dot(self.q_theta[theta, :, :], self.R))
+            Ta[a_theta].append(theta)
+        return Ta
 
-    def finiteIR(self):
-        pass
+    def get_pa_star(self):
+        '''
+        :return: array of shape K
+         For a given prior, the probabilities that action a in [1,K] is the optimal action
+        '''
+        pa = np.zeros(self.nb_arms)
+        for a in range(self.nb_arms):
+            for x in self.Ta[a]:
+                pa[a] += self.prior[x]
+        return pa
+
+    def get_py(self):
+        '''
+        :return: array of shape (K,N)
+        Probability of outcome Y while pulling arm A for a given prior
+        '''
+        PY = np.zeros((self.nb_arms, self.N))
+        for a in range(self.nb_arms):
+            for y in range(self.N):
+                for x in range(self.L):
+                    PY[a, y] += self.prior[x]*self.q_theta[x, a, y]
+        return PY
+
+    def get_joint_ay(self):
+        '''
+        :return: Array of shape (K,K,N)
+        Joint distribution of the outcome and the optimal arm while pulling arm a
+        '''
+        P_ay = np.zeros((self.nb_arms, self.nb_arms, self.N))
+        for a in range(self.nb_arms):
+            for a_star in range(self.nb_arms):
+                for y in range(self.N):
+                    for x in self.Ta[a_star]:
+                        P_ay[a, a_star, y] += self.q_theta[x, a, y]*self.prior[x]
+        return P_ay
+
+    def get_R_star(self, joint_P):
+        '''
+        :return: Optimal expected reward for a given prior
+        '''
+        R = 0
+        for a in range(self.nb_arms):
+            for y in range(self.N):
+                R += joint_P[a, a, y]*self.R[y]
+        return R
+
+    def IR(self):
+        pa = self.get_pa_star()
+        py = self.get_py()
+        joint = self.get_joint_ay()
+        R_star = self.get_R_star(joint)
+        g = np.zeros(self.nb_arms)
+        delta = np.zeros(self.nb_arms)+R_star
+        for a in range(self.nb_arms):
+            for y in range(self.N):
+                for a_star in range(self.nb_arms):
+                    if joint[a, a_star, y]>0:
+                        g[a] += joint[a, a_star, y]*np.log(joint[a, a_star, y]/pa[a_star]/py[a, y])
+                for x in range(self.L):
+                    delta[a] -= self.prior[x]*self.q_theta[x, a, y]*self.R[y]
+        return delta, g
+
+    def update_prior(self, a, y):
+        for x in range(self.L):
+            self.prior[x] *= self.q_theta[x, a, y]
+        self.prior = self.prior/self.prior.sum()
+
+    def IDS(self, T):
+        """
+        Implementation of the Information Directed Sampling for Finite sets
+        :param T: number of rounds
+        :return: Reward obtained by the policy and sequence of chosen arms
+        """
+        Sa, Na, Y, arm_sequence = self.init_lists(T)
+        reward = np.zeros(T)
+        for t in range(T):
+            delta, g = self.IR()
+            arm = self.IDSAction(delta, g)
+            self.update_lists(t, arm, Sa, Na, Y, arm_sequence)
+            reward[t] = self.R[int(Y[t])]
+            self.update_prior(arm, int(Y[t]))
+        return reward, arm_sequence
+
