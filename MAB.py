@@ -222,14 +222,15 @@ class GenericMAB:
 
     def IDSAction(self,delta,g):
         Q = np.zeros((self.nb_arms, self.nb_arms))
+        IR = np.zeros((self.nb_arms, self.nb_arms))
         for a in range(self.nb_arms):
             for ap in range(self.nb_arms):
                 da, dap = delta[a], delta[ap]
                 ga, gap = g[a], g[ap]
-                q1 = dap/(da+dap)
+                q1 = -dap/(da-dap)
                 q2 = -1.
                 if ga != gap:
-                    q2 = q1+2*gap/(ga-gap)
+                    q2 = q1-2*gap/(ga-gap)
                 if 0 <= q1 <= 1:
                     Q[a, ap] = q1
                 elif 0 <= q2 <= 1:
@@ -238,7 +239,8 @@ class GenericMAB:
                     Q[a, ap] = 1
                 else:
                     Q[a, ap] = 0
-        amin = np.argmin(Q.reshape(self.nb_arms*self.nb_arms))
+                IR[a, ap] = (Q[a, ap]*(da-dap)+dap)**2/(Q[a, ap]*(ga-gap)+gap)
+        amin = rd_argmax(-IR.reshape(self.nb_arms*self.nb_arms))
         a, ap = amin//self.nb_arms, amin % self.nb_arms
         b = np.random.binomial(1, Q[a, ap])
         return int(b*a+(1-b)*ap)
@@ -311,7 +313,7 @@ class BetaBernoulliMAB(GenericMAB):
         :return: the two components of the Information ration delta and g
         """
         def joint_cdf(x):
-            result = 1
+            result = 1.
             for i in range(self.nb_arms):
                 result = result*beta.cdf(x, b1[i], b2[i])
             return result
@@ -323,13 +325,13 @@ class BetaBernoulliMAB(GenericMAB):
             return beta.pdf(x, b1[a], b2[a])*joint_cdf(x)/beta.cdf(x, b1[a], b2[a])
 
         def p_star(a):
-            return integrate.quad(lambda x: dp_star(x, a), 0., 1.)[0]  # result is a tuple (value, UB error)
+            return integrate.quad(lambda x: dp_star(x, a), 0., 1., epsabs=1e-2)[0]  # result is a tuple (value, UB error)
 
         def MAA(a, p):
-            return integrate.quad(lambda x: x*dp_star(x, a), 0., 1.)[0]/p[a]
+            return integrate.quad(lambda x: x*dp_star(x, a), 0., 1., epsabs=1e-2)[0]/p[a]
 
-        def MAAP(a, ap, p):
-            return integrate.quad(lambda x: dp_star(x, a)*G(x, ap)/beta.cdf(x, b1[ap], b2[ap]), 0., 1.)[0]/p[a]
+        def MAAP(ap, a, p):
+            return integrate.quad(lambda x: dp_star(x, a)*G(x, ap)/beta.cdf(x, b1[ap], b2[ap]), 0., 1., epsabs=1e-2)[0]/p[a]
 
         def g(a, p, M):
             gp = p*(M[a]*np.log(M[a]*(b1+b2)/b1)+(1-M[a])*np.log((1-M[a])*(b1+b2)/b2))
@@ -340,21 +342,21 @@ class BetaBernoulliMAB(GenericMAB):
         maap = np.array([[MAAP(a, ap, ps) for a in range(self.nb_arms)] for ap in range(self.nb_arms)])
         rho = (ps*ma).sum()
         delta = rho-b1/(b1+b2)
-        g = np.array([g(a, ps, maap) for a in range(self.nb_arms)])
+        g = np.array([g(a, ps, maap.T) for a in range(self.nb_arms)])
         return delta, g
 
     def IDS(self, T):
         """
         Implementation of the Information Directed Sampling for Beta-Bernoulli bandits
         :param T: number of rounds
-        :return: Reward obtained by the policy and sequence of the arms choosed
+        :return: Reward obtained by the policy and sequence of chosen arms
         """
         Sa, Na, reward, arm_sequence = self.init_lists(T)
         beta_1 = np.zeros(self.nb_arms)+1.
         beta_2 = np.zeros(self.nb_arms)+1.
-        for t in tqdm(range(T)):
+        for t in range(T):
             delta, g = self.IR(beta_1, beta_2)
-            arm = rd_argmax(delta**2/g)
+            arm = self.IDSAction(delta, g)
             self.update_lists(t, arm, Sa, Na, reward, arm_sequence)
             beta_1[arm] += reward[t]
             beta_2[arm] += 1-reward[t]
@@ -390,7 +392,26 @@ class BetaBernoulliMAB(GenericMAB):
         return reward, arm_sequence
 
 
-class FiniteMAB(GenericMAB):
-    def __init__(self, method, param, theta_space):
+class FiniteSets(GenericMAB):
+    def __init__(self, method, param, q_theta,R):
+        '''
+        theta in [1,L], Y in [1,N], A in [1,K]
+        :param method: list with the types for each arm
+        :param param: list with the parameters for each arm
+        :param q_theta: K*L*N array with the probability of each outcome knowing theta
+        :param R: mapping between outcomes and rewards
+        '''
         super().__init__(method, param)
-        self.theta = theta_space
+        self.q_theta = q_theta
+        self.R = R
+        self.K = q_theta.shape[0]
+        self.L = q_theta.shape[1]
+        self.N = q_theta.shape[2]
+
+    def get_theta_a(self):
+        theta_a = [[] for a in range(self.nb_arms)]
+        for theta in range(self.L):
+            self.q_theta = 0
+
+    def finiteIR(self):
+        pass
