@@ -10,8 +10,8 @@ def comprehension():
     p1 = [0.05, 0.4, 0.7, 0.90]
     N1 = 50
     my_MAB = mab.BetaBernoulliMAB(p1)
-    plt.plot(my_MAB.MC_regret(method='UCB1', N=N1, T=1000, rho=0.2), label='UCB1')
-    plt.plot(my_MAB.MC_regret(method='Random', N=N1, T=1000), label='Random')
+    plt.plot(my_MAB.MC_regret(method='UCB1', N=N1, T=1000, param=0.2), label='UCB1')
+    plt.plot(my_MAB.MC_regret(method='RandomPolicy', N=N1, T=1000), label='Random')
     plt.plot(my_MAB.MC_regret(method='TS', N=N1, T=1000), label='TS')
     plt.ylabel('Cumulative Regret')
     plt.xlabel('Rounds')

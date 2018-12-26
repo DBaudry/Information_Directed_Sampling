@@ -165,33 +165,26 @@ class GenericMAB:
             self.update_lists(t, arm, Sa, Na, reward, arm_sequence)
         return reward, arm_sequence
 
-    def kgf(self, x):
-        """
-        :param x: float
-        :return: kgf(x) used to select the best arm with KG algorithm (see below)
-        """
-        return norm.cdf(x) * x + norm.pdf(x)
-
     def KG(self, T):
         """
         Implementation of Knowledge Gradient algorithm
         :param T: number of rounds
         :return: Reward obtained by the policy and sequence of the arms choosed
         """
+        def kgf(x):
+            return norm.cdf(x)*x+norm.pdf(x)
         Sa, Na, reward, arm_sequence = self.init_lists(T)
         for t in range(T):
             if t < self.nb_arms:
                 arm = t
             else:
                 rmse = np.sqrt(
-                    1 / Na * np.array([np.sum((reward[np.where(arm_sequence == arm)] - (Sa / Na)[arm]) ** 2) for arm
-                                       in range(self.nb_arms)]))
+                    1 / Na * np.array([np.sum((reward[np.where(arm_sequence == arm)] - (Sa / Na)[arm]) ** 2)
+                                       for arm in range(self.nb_arms)]))
                 x = np.array(
                     [(Sa / Na)[i] - np.max(list(Sa / Na)[:i] + list(Sa / Na)[i + 1:]) for i in range(self.nb_arms)])
-                v = rmse * self.kgf(-np.absolute(x / (rmse + 10e-9)))
-                # print(v)
-                # print(Sa / Na + (T - t) * v)
-                arm = np.argmax(Sa / Na + (T - t) * v)
+                v = rmse * kgf(-np.absolute(x / (rmse + 10e-9)))
+                arm = rd_argmax(Sa / Na + (T - t) * v)
             self.update_lists(t, arm, Sa, Na, reward, arm_sequence)
         return np.array(reward), np.array(arm_sequence)
 
@@ -247,7 +240,7 @@ class GenericMAB:
 
 class BetaBernoulliMAB(GenericMAB):
     """
-    TODO: checker avec DODO mais pour moi c'est bien une distribution Bernouilli sur les bras avec un prior Beta dans
+    TODO: checker avec DODO mais pour moi c'est bien une distribution Bernoulli sur les bras avec un prior Beta dans
     le cas bayésien
     """
     def __init__(self, p):
@@ -292,7 +285,7 @@ class BetaBernoulliMAB(GenericMAB):
                     quantiles[k] = beta.ppf(1-1/(t*np.log(T)**c), Sa[k] + a, b + Na[k] - Sa[k])
                 else:
                     quantiles[k] = beta.ppf(1-1/(t*np.log(T)**c), a, b)
-            arm = np.argmax(quantiles)
+            arm = rd_argmax(quantiles)
             self.update_lists(t, arm, Sa, Na, reward, arm_sequence)
         return reward, arm_sequence
 
