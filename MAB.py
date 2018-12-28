@@ -188,6 +188,46 @@ class GenericMAB:
             self.update_lists(t, arm, Sa, Na, reward, arm_sequence)
         return np.array(reward), np.array(arm_sequence)
 
+    def multi_simul_KG(self, M, arm_sequence, arm, reward, Na, Sa, std, delta, T, t):
+        reward_temp = list(reward[np.where(arm_sequence == arm)])
+        Na_temp, Sa_temp, v_temp = Na[arm], Sa[arm], 0
+        for k in range(M):
+            r_temp = self.MAB[arm].sample()
+            reward_temp.append(r_temp)
+            Na_temp += 1
+            Sa_temp += r_temp
+            std[arm] = np.std(reward_temp)
+            delta[arm] = Sa_temp / Na_temp - np.max([(Sa / Na)[i] for i in range(self.nb_arms) if i != arm])
+            v_temp += Sa_temp / Na_temp + (T - t) * (std[arm] * self.kgf(-np.absolute(delta[arm] / (std[arm] + 10e-9))))
+        return std[arm], delta[arm], v_temp / M
+
+    def KG_star(self, T, lbda=1):
+        Sa, Na, reward, arm_sequence = self.init_lists(T)
+        for t in range(T):
+            if t < self.nb_arms:
+                arm = t
+            else:
+                std = np.array([np.std(reward[np.where(arm_sequence == arm)]) for arm in range(self.nb_arms)])
+                delta = np.array(
+                    [(Sa / Na)[i] - np.max(list(Sa / Na)[:i] + list(Sa / Na)[i + 1:]) for i in range(self.nb_arms)])
+                r = (delta / (std + 10e-9)) ** 2
+                m_lower = lbda / (4 * std ** 2 + 10e-9) * (-1 + r + np.sqrt(1 + 6 * r + r ** 2))
+                m_higher = lbda / (4 * std ** 2 + 10e-9) * (1 + r + np.sqrt(1 + 10 * r + r ** 2))
+                v = np.zeros(self.nb_arms)
+                for arm in range(self.nb_arms):
+                    if T - t <= m_lower[arm]:
+                        M = T - t
+                    elif (delta[arm] == 0) or (m_higher[arm] <= 1):
+                        M = 1
+                    else:
+                        M = np.ceil(0.5 * ((m_lower + m_higher)[arm])).astype(int)  # approximation
+                    print(m_lower, m_higher, M)
+                    std[arm], delta[arm], v[arm] = self.multi_simul_KG(M, arm_sequence, arm, reward, Na, Sa, std, delta,
+                                                                       T, t)
+                arm = np.argmax(v)
+            self.update_lists(t, arm, Sa, Na, reward, arm_sequence)
+        return np.array(reward), np.array(arm_sequence)
+
     def TS(self, T):
         """
         Implementation of the Thomson Sampling algorithm
