@@ -555,12 +555,12 @@ class GaussianMAP(GenericMAB):
         def p_star(a):
             x_sup = np.max([np.max(mu) + 5 * np.max(sigma), mu[a] + 5 * sigma[a]])
             x_inf = np.min([np.min(mu) - 5 * np.max(sigma), mu[a] - 5 * sigma[a]])
-            return integrate.quad(lambda x: dp_star(x, a), x_sup, x_inf, epsabs=1e-2)[0]
+            return integrate.quad(lambda x: dp_star(x, a), x_inf, x_sup, epsabs=1e-2)[0]
 
         def MAA(a, p):
             x_sup = np.max([np.max(mu) + 5 * np.max(sigma), mu[a] + 5 * sigma[a]])
             x_inf = np.min([np.min(mu) - 5 * np.max(sigma), mu[a] - 5 * sigma[a]])
-            return integrate.quad(lambda x: x*dp_star(x, a), x_sup, x_inf, epsabs=1e-2)[0]/p[a]
+            return integrate.quad(lambda x: x*dp_star(x, a), x_inf, x_sup, epsabs=1e-2)[0]/p[a]
 
         def MAAP(ap, a, p):
             x_sup = np.max([np.max(mu) + 5 * np.max(sigma), np.max([mu[a], mu[ap]]) + 5 * np.max([sigma[a], sigma[ap]])])
