@@ -53,6 +53,27 @@ class ArmBeta(AbstractArm):
         return self.local_random.beta(self.a, self.b, 1)
 
 
+class ArmGaussian(AbstractArm):
+    def __init__(self, mu, sigma, eta, random_state=0):
+        """
+        arm having a Normal distribution
+        Args:
+             mu (float): mean parameter
+             sigma (float): std parameter
+             random_state (int): seed to make experiments reproducible
+        """
+        self.mu = mu
+        self.sigma = sigma
+        self.eta = eta
+        super(ArmGaussian, self).__init__(mean=mu,
+                                          variance=sigma,
+                                          random_state=random_state)
+
+    def sample(self):
+        theta = self.local_random.normal(self.mu, self.sigma, 1)
+        return self.local_random.normal(theta, self.eta, 1)
+
+
 class ArmExp(AbstractArm):
     # https://en.wikipedia.org/wiki/Truncated_distribution
     # https://en.wikipedia.org/wiki/Exponential_distribution
