@@ -35,6 +35,8 @@ class GenericMAB:
                 arms_list.append(arms.ArmFinite(X=p[0], P=p[1], random_state=np.random.randint(1, 312414)))
             elif m == 'Exp':
                 arms_list.append(arms.ArmExp(L=p[0], B=p[1], random_state=np.random.randint(1, 312414)))
+            elif m == 'G':
+                arms_list.append(arms.ArmGaussian(mu=p[0], sigma=p[1], eta=p[2], random_state=np.random.randint(1, 312414)))
             else:
                 raise NameError('This method is not implemented, available methods are defined in generate_arms method')
         return arms_list
@@ -85,7 +87,7 @@ class GenericMAB:
         """
         return np.zeros(self.nb_arms), np.zeros(self.nb_arms), np.zeros(T), np.zeros(T)
 
-    def update_lists(self, t, arm, Sa, Na, reward, arm_sequence):
+    def update_lists(self, t, arm, Sa, Na, reward, arm_sequence, tsNoBinary=False):
         """
         Update all the parameters of interest after choosing the correct arm
         :param t: current round
@@ -98,7 +100,8 @@ class GenericMAB:
         """
         Na[arm] += 1  # Updating the number of times the arm "arm" was selected
         arm_sequence[t] = arm  # the arm "arm" was selected at round t
-        new_reward = self.MAB[arm].sample()  # obtaining the new reward by pulling the arm a
+        # obtaining the new reward by pulling the arm a
+        new_reward = np.random.binomial(1, self.MAB[arm].sample(), 1)[0] * 1.0 if tsNoBinary else self.MAB[arm].sample()
         reward[t] = new_reward  # adding this new reward to the array of rewards
         Sa[arm] += new_reward  # updating the cumulative reward of the arm "arm"
 
@@ -165,69 +168,6 @@ class GenericMAB:
             self.update_lists(t, arm, Sa, Na, reward, arm_sequence)
         return reward, arm_sequence
 
-    def KG(self, T):
-        """
-        Implementation of Knowledge Gradient algorithm
-        :param T: number of rounds
-        :return: Reward obtained by the policy and sequence of the arms choosed
-        """
-        def kgf(x):
-            return norm.cdf(x)*x+norm.pdf(x)
-        Sa, Na, reward, arm_sequence = self.init_lists(T)
-        for t in range(T):
-            if t < self.nb_arms:
-                arm = t
-            else:
-                rmse = np.sqrt(
-                    1 / Na * np.array([np.sum((reward[np.where(arm_sequence == arm)] - (Sa / Na)[arm]) ** 2)
-                                       for arm in range(self.nb_arms)]))
-                x = np.array(
-                    [(Sa / Na)[i] - np.max(list(Sa / Na)[:i] + list(Sa / Na)[i + 1:]) for i in range(self.nb_arms)])
-                v = rmse * kgf(-np.absolute(x / (rmse + 10e-9)))
-                arm = rd_argmax(Sa / Na + (T - t) * v)
-            self.update_lists(t, arm, Sa, Na, reward, arm_sequence)
-        return np.array(reward), np.array(arm_sequence)
-
-    def multi_simul_KG(self, M, arm_sequence, arm, reward, Na, Sa, std, delta, T, t):
-        reward_temp = list(reward[np.where(arm_sequence == arm)])
-        Na_temp, Sa_temp, v_temp = Na[arm], Sa[arm], 0
-        for k in range(M):
-            r_temp = self.MAB[arm].sample()
-            reward_temp.append(r_temp)
-            Na_temp += 1
-            Sa_temp += r_temp
-            std[arm] = np.std(reward_temp)
-            delta[arm] = Sa_temp / Na_temp - np.max([(Sa / Na)[i] for i in range(self.nb_arms) if i != arm])
-            v_temp += Sa_temp / Na_temp + (T - t) * (std[arm] * self.kgf(-np.absolute(delta[arm] / (std[arm] + 10e-9))))
-        return std[arm], delta[arm], v_temp / M
-
-    def KG_star(self, T, lbda=1):
-        Sa, Na, reward, arm_sequence = self.init_lists(T)
-        for t in range(T):
-            if t < self.nb_arms:
-                arm = t
-            else:
-                std = np.array([np.std(reward[np.where(arm_sequence == arm)]) for arm in range(self.nb_arms)])
-                delta = np.array(
-                    [(Sa / Na)[i] - np.max(list(Sa / Na)[:i] + list(Sa / Na)[i + 1:]) for i in range(self.nb_arms)])
-                r = (delta / (std + 10e-9)) ** 2
-                m_lower = lbda / (4 * std ** 2 + 10e-9) * (-1 + r + np.sqrt(1 + 6 * r + r ** 2))
-                m_higher = lbda / (4 * std ** 2 + 10e-9) * (1 + r + np.sqrt(1 + 10 * r + r ** 2))
-                v = np.zeros(self.nb_arms)
-                for arm in range(self.nb_arms):
-                    if T - t <= m_lower[arm]:
-                        M = T - t
-                    elif (delta[arm] == 0) or (m_higher[arm] <= 1):
-                        M = 1
-                    else:
-                        M = np.ceil(0.5 * ((m_lower + m_higher)[arm])).astype(int)  # approximation
-                    print(m_lower, m_higher, M)
-                    std[arm], delta[arm], v[arm] = self.multi_simul_KG(M, arm_sequence, arm, reward, Na, Sa, std, delta,
-                                                                       T, t)
-                arm = np.argmax(v)
-            self.update_lists(t, arm, Sa, Na, reward, arm_sequence)
-        return np.array(reward), np.array(arm_sequence)
-
     def TS(self, T):
         """
         Implementation of the Thomson Sampling algorithm
@@ -246,6 +186,7 @@ class GenericMAB:
             self.update_lists(t, arm, Sa, Na, reward, arm_sequence)
             Sa[arm] += np.random.binomial(1, reward[t])-reward[t]
         return reward, arm_sequence
+
 
     def IDSAction(self, delta, g):
         Q = np.zeros((self.nb_arms, self.nb_arms))
@@ -460,9 +401,9 @@ class FiniteSets(GenericMAB):
          For a given prior, the probabilities that action a in [1,K] is the optimal action
         '''
         pa = np.zeros(self.nb_arms)
-        for a in range(self.nb_arms):
-            for x in self.Ta[a]:
-                pa[a] += self.prior[x]
+        for a_star in range(self.nb_arms):
+            for x in self.Ta[a_star]:
+                pa[a_star] += self.prior[x]
         return pa
 
     def get_py(self):
@@ -537,3 +478,187 @@ class FiniteSets(GenericMAB):
             self.update_prior(arm, int(Y[t]))
         return reward, arm_sequence
 
+
+class GaussianMAP(GenericMAB):
+    """
+    TODO: BayesUCB to adapt for gaussian bandits
+    """
+    def __init__(self, p):
+        super().__init__(method=['G']*len(p), param=p)
+        self.Cp = sum([(self.mu_max-x)/self.kl(x, self.mu_max) for x in self.means if x != self.mu_max])
+
+    def TS(self, T):
+        """
+        Implementation of the Thomson Sampling algorithm
+        :param T: number of rounds
+        :return: Reward obtained by the policy and sequence of the arms choosed
+        """
+        Sa, Na, reward, arm_sequence = self.init_lists(T)
+        theta = np.zeros(self.nb_arms)
+        for t in range(T):
+            for k in range(self.nb_arms):
+                if Na[k] >= 1:
+                    theta[k] = np.random.beta(Sa[k]+1, Na[k]-Sa[k]+1)
+                else:
+                    theta[k] = np.random.uniform()
+            arm = np.argmax(theta)
+            self.update_lists(t, arm, Sa, Na, reward, arm_sequence, tsNoBinary=True)
+        return reward, arm_sequence
+
+
+    def BayesUCB(self, T, a, b, c=0):
+        """
+        BayesUCB implementation in the case of a Beta(a,b) prior on the theta parameters
+        for a BinomialMAB.
+        Implementation of On Bayesian Upper Confidence Bounds for Bandit Problems, Kaufman & al,
+        from http://proceedings.mlr.press/v22/kaufmann12/kaufmann12.pdf
+        :param T: number of rounds
+        :param a: First parameter of the Beta prior probability distribution
+        :param b: Second parameter of the Beta prior probability distribution
+        :param c: Parameter for the quantiles. Default value c=0
+        :return: Reward obtained by the policy and sequence of the arms choosed
+        """
+        Sa, Na, reward, arm_sequence = self.init_lists(T)
+        quantiles = np.zeros(self.nb_arms)
+        for t in range(T):
+            for k in range(self.nb_arms):
+                if Na[k] >= 1:
+                    quantiles[k] = beta.ppf(1-1/(t*np.log(T)**c), Sa[k] + a, b + Na[k] - Sa[k])
+                else:
+                    quantiles[k] = beta.ppf(1-1/(t*np.log(T)**c), a, b)
+            arm = rd_argmax(quantiles)
+            self.update_lists(t, arm, Sa, Na, reward, arm_sequence)
+        return reward, arm_sequence
+
+    @staticmethod
+    def kl(x, y):
+        """
+        Implementation of the Kullback-Leibler divergence
+        """
+        return x * np.log(x/y) + (1-x) * np.log((1-x)/(1-y))
+
+    def IR(self, mu, sigma):
+        """
+        Implementation of the Information Ratio for gaussian bandits with gaussian prior
+        :param b1: list, first parameter of the beta distribution for each arm
+        :param b2: list, second parameter of the beta distribution for each arm
+        :return: the two components of the Information ration delta and g
+        """
+        def joint_cdf(x):
+            result = 1.
+            for a in range(self.nb_arms):
+                result = result*norm.cdf(x, mu[a], sigma[a])
+            return result
+
+        def dp_star(x, a):
+            return norm.pdf(x, mu[a], sigma[a])*joint_cdf(x)/norm.cdf(x, mu[a], sigma[a])
+
+        def p_star(a):
+            x_sup = np.max([np.max(mu) + 5 * np.max(sigma), mu[a] + 5 * sigma[a]])
+            x_inf = np.min([np.min(mu) - 5 * np.max(sigma), mu[a] - 5 * sigma[a]])
+            return integrate.quad(lambda x: dp_star(x, a), x_inf, x_sup, epsabs=1e-2)[0]
+
+        def MAA(a, p):
+            x_sup = np.max([np.max(mu) + 5 * np.max(sigma), mu[a] + 5 * sigma[a]])
+            x_inf = np.min([np.min(mu) - 5 * np.max(sigma), mu[a] - 5 * sigma[a]])
+            return integrate.quad(lambda x: x*dp_star(x, a), x_inf, x_sup, epsabs=1e-2)[0]/p[a]
+
+        def MAAP(ap, a, p):
+            x_sup = np.max([np.max(mu) + 5 * np.max(sigma), np.max([mu[a], mu[ap]]) + 5 * np.max([sigma[a], sigma[ap]])])
+            x_inf = np.min([np.min(mu) - 5 * np.max(sigma), np.min([mu[a], mu[ap]]) - 5 * np.max([sigma[a], sigma[ap]])])
+            return mu[ap]-(sigma[ap]**2)/p[a]*integrate.quad(
+                lambda x: dp_star(x, a)*norm.pdf(x, mu[ap], sigma[ap])/norm.cdf(x, mu[ap], sigma[ap]),
+                x_inf, x_sup, epsabs=1e-2)[0]
+
+        def v(a, p, M):
+            vp = p*((M[a]-mu[a])**2)
+            return vp.sum()
+
+        ps = np.array([p_star(a) for a in range(self.nb_arms)])
+        ma = np.array([MAA(a, ps) for a in range(self.nb_arms)])
+        maap = np.array([[MAAP(a, ap, ps) for a in range(self.nb_arms)] for ap in range(self.nb_arms)])
+        rho = (ps*ma).sum()
+        delta = rho-mu
+        v = np.array([v(a, ps, maap.T) for a in range(self.nb_arms)])
+        return delta, v
+
+    def IDS(self, T):
+        """
+        Implementation of the Information Directed Sampling for Gaussian bandits
+        :param T: number of rounds
+        :return: Reward obtained by the policy and sequence of chosen arms
+        """
+        Sa, Na, reward, arm_sequence = self.init_lists(T)
+        mu = np.zeros(self.nb_arms)
+        sigma = np.zeros(self.nb_arms)+1.
+        for t in range(T):
+            delta, v = self.IR(mu, sigma)
+            arm = self.IDSAction(delta, v)
+            eta = self.MAB[arm].eta
+            self.update_lists(t, arm, Sa, Na, reward, arm_sequence)
+            mu[arm] = (mu[arm]/sigma[arm]**2 + reward[t]/eta**2)/(1/(sigma[arm]**2) + eta**(-2))
+            sigma[arm] = (1/(sigma[arm]**2) + eta**(-2))**(-1)
+        return reward, arm_sequence
+
+    def KG(self, T):
+        """
+        Implementation of Knowledge Gradient algorithm
+        :param T: number of rounds
+        :return: Reward obtained by the policy and sequence of the arms chosen
+        """
+        def kgf(x):
+            return norm.cdf(x)*x+norm.pdf(x)
+
+        Sa, Na, reward, arm_sequence = self.init_lists(T)
+        for t in range(T):
+            if t < self.nb_arms:
+                arm = t
+            else:
+                rmse = np.sqrt(
+                    1 / Na * np.array([np.sum((reward[np.where(arm_sequence == arm)] - (Sa / Na)[arm]) ** 2)
+                                       for arm in range(self.nb_arms)]))
+                x = np.array(
+                    [(Sa / Na)[i] - np.max(list(Sa / Na)[:i] + list(Sa / Na)[i + 1:]) for i in range(self.nb_arms)])
+                v = rmse * kgf(-np.absolute(x / (rmse + 10e-9)))
+                arm = rd_argmax(Sa / Na + (T - t) * v)
+            self.update_lists(t, arm, Sa, Na, reward, arm_sequence)
+        return np.array(reward), np.array(arm_sequence)
+
+    def multi_simul_KG(self, M, arm_sequence, arm, reward, Na, Sa, std, delta, T, t):
+        reward_temp = list(reward[np.where(arm_sequence == arm)])
+        Na_temp, Sa_temp, v_temp = Na[arm], Sa[arm], 0
+        for k in range(M):
+            r_temp = self.MAB[arm].sample()
+            reward_temp.append(r_temp)
+            Na_temp += 1
+            Sa_temp += r_temp
+            std[arm] = np.std(reward_temp)
+            delta[arm] = Sa_temp / Na_temp - np.max([(Sa / Na)[i] for i in range(self.nb_arms) if i != arm])
+            v_temp += Sa_temp / Na_temp + (T - t) * (std[arm] * self.kgf(-np.absolute(delta[arm] / (std[arm] + 10e-9))))
+        return std[arm], delta[arm], v_temp / M
+
+    def KG_star(self, T, lbda=1):
+        Sa, Na, reward, arm_sequence = self.init_lists(T)
+        for t in range(T):
+            if t < self.nb_arms:
+                arm = t
+            else:
+                std = np.array([np.std(reward[np.where(arm_sequence == arm)]) for arm in range(self.nb_arms)])
+                delta = np.array(
+                    [(Sa / Na)[i] - np.max(list(Sa / Na)[:i] + list(Sa / Na)[i + 1:]) for i in range(self.nb_arms)])
+                r = (delta / (std + 10e-9)) ** 2
+                m_lower = lbda / (4 * std ** 2 + 10e-9) * (-1 + r + np.sqrt(1 + 6 * r + r ** 2))
+                m_higher = lbda / (4 * std ** 2 + 10e-9) * (1 + r + np.sqrt(1 + 10 * r + r ** 2))
+                v = np.zeros(self.nb_arms)
+                for arm in range(self.nb_arms):
+                    if T - t <= m_lower[arm]:
+                        M = T - t
+                    elif (delta[arm] == 0) or (m_higher[arm] <= 1):
+                        M = 1
+                    else:
+                        M = np.ceil(0.5 * ((m_lower + m_higher)[arm])).astype(int)  # approximation
+                    std[arm], delta[arm], v[arm] = self.multi_simul_KG(M, arm_sequence, arm, reward, Na, Sa, std, delta,
+                                                                       T, t)
+                arm = rd_argmax(v)
+            self.update_lists(t, arm, Sa, Na, reward, arm_sequence)
+        return np.array(reward), np.array(arm_sequence)
