@@ -117,7 +117,7 @@ def build_finite(L, K, N):
     :param N: Number of possible rewards
     :return: Parameters required for launching an experiment with a finite bandit (prior, q values and R function)
     """
-    R = np.linspace(0., 1., 11)
+    R = np.linspace(0., 1., N)
     q = np.random.uniform(size=(L, K, N))
     for i in range(q.shape[0]):
         q[i] = np.apply_along_axis(lambda x: x / x.sum(), 1, q[i])
