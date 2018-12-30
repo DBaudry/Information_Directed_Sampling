@@ -54,6 +54,7 @@ class GenericMAB:
         """
         Monte Carlo method for approximating the expectation of the regret.
         :param method: Method used (UCB, Thomson Sampling, etc..)
+        TODO: pourquoi param=0.2 et au-dessus c'est marqué method used ? il correspond a quoi ce parametre?
         """
         MC_regret = np.zeros(T)
         for _ in tqdm(range(N), desc='Computing ' + str(N) + ' simulations'):
@@ -69,6 +70,8 @@ class GenericMAB:
                 MC_regret += self.regret(self.MOSS(T, param)[0], T)
             elif method == 'KG':
                 MC_regret += self.regret(self.KG(T)[0], T)
+            elif method == 'KG*':
+                MC_regret += self.regret(self.KG_star(T)[0], T)
             elif method == 'ExploreCommit':
                 MC_regret += self.regret(self.ExploreCommit(m=param, T=T)[0], T)
             elif method == 'BayesUCB':
@@ -87,7 +90,7 @@ class GenericMAB:
         """
         return np.zeros(self.nb_arms), np.zeros(self.nb_arms), np.zeros(T), np.zeros(T)
 
-    def update_lists(self, t, arm, Sa, Na, reward, arm_sequence, tsNoBinary=False):
+    def update_lists(self, t, arm, Sa, Na, reward, arm_sequence):
         """
         Update all the parameters of interest after choosing the correct arm
         :param t: current round
@@ -100,8 +103,7 @@ class GenericMAB:
         """
         Na[arm] += 1  # Updating the number of times the arm "arm" was selected
         arm_sequence[t] = arm  # the arm "arm" was selected at round t
-        # obtaining the new reward by pulling the arm a
-        new_reward = np.random.binomial(1, self.MAB[arm].sample(), 1)[0] * 1.0 if tsNoBinary else self.MAB[arm].sample()
+        new_reward = self.MAB[arm].sample() # obtaining the new reward by pulling the arm a
         reward[t] = new_reward  # adding this new reward to the array of rewards
         Sa[arm] += new_reward  # updating the cumulative reward of the arm "arm"
 
@@ -242,7 +244,7 @@ class BetaBernoulliMAB(GenericMAB):
                     theta[k] = np.random.beta(Sa[k]+1, Na[k]-Sa[k]+1)
                 else:
                     theta[k] = np.random.uniform()
-            arm = np.argmax(theta)
+            arm = rd_argmax(theta)
             self.update_lists(t, arm, Sa, Na, reward, arm_sequence)
         return reward, arm_sequence
 
@@ -491,22 +493,25 @@ class GaussianMAP(GenericMAB):
         super().__init__(method=['G']*len(p), param=p)
         self.Cp = sum([(self.mu_max-x)/self.kl(x, self.mu_max) for x in self.means if x != self.mu_max])
 
-    def TS(self, T):
+    def TS(self, T, alpha=0):
         """
         Implementation of the Thomson Sampling algorithm
         :param T: number of rounds
         :return: Reward obtained by the policy and sequence of the arms choosed
+        TODO: a finir
         """
         Sa, Na, reward, arm_sequence = self.init_lists(T)
-        theta = np.zeros(self.nb_arms)
+        mu, S = np.zeros(self.nb_arms), np.zeros(self.nb_arms)
+        n_bar = np.max(2, 3-np.ceil(2*alpha))
         for t in range(T):
-            for k in range(self.nb_arms):
-                if Na[k] >= 1:
-                    theta[k] = np.random.beta(Sa[k]+1, Na[k]-Sa[k]+1)
-                else:
-                    theta[k] = np.random.uniform()
-            arm = np.argmax(theta)
-            self.update_lists(t, arm, Sa, Na, reward, arm_sequence, tsNoBinary=True)
+            if t < self.nb_arms * n_bar:
+                arm = t % self.nb_arms
+            else:
+                for k in range(self.nb_arms):
+                    S[k] = sum([r**2 for r in reward[np.where(arm_sequence==k)]]) - Sa[k]**2/Na[k]
+                    mu[k] = Sa[k]/Na[k] + np.sqrt(S[k]/(Na[k]*(Na[k]+2*alpha-1))) * np.random.standard_t(Na[k]+2*alpha-1,1)
+                arm = rd_argmax(mu)
+            self.update_lists(t, arm, Sa, Na, reward, arm_sequence)
         return reward, arm_sequence
 
 
@@ -594,41 +599,42 @@ class GaussianMAP(GenericMAB):
         """
         Sa, Na, reward, arm_sequence = self.init_lists(T)
         mu = np.zeros(self.nb_arms)
-        sigma = np.zeros(self.nb_arms)+1.
+        sigma = np.ones(self.nb_arms)
         for t in range(T):
             delta, v = self.IR(mu, sigma)
             arm = self.IDSAction(delta, v)
             eta = self.MAB[arm].eta
             self.update_lists(t, arm, Sa, Na, reward, arm_sequence)
-            mu[arm] = (mu[arm]/sigma[arm]**2 + reward[t]/eta**2)/(1/(sigma[arm]**2) + eta**(-2))
+            mu[arm] = (mu[arm]/sigma[arm]**2 + reward[t+1]/eta**2)/(1/(sigma[arm]**2) + eta**(-2))
             sigma[arm] = (1/(sigma[arm]**2) + eta**(-2))**(-1)
         return reward, arm_sequence
+
+    def kgf(self, x):
+        return norm.cdf(x) * x + norm.pdf(x)
 
     def KG(self, T):
         """
         Implementation of Knowledge Gradient algorithm
         :param T: number of rounds
         :return: Reward obtained by the policy and sequence of the arms chosen
+        TODO: a finir
         """
-        def kgf(x):
-            return norm.cdf(x)*x+norm.pdf(x)
-
         Sa, Na, reward, arm_sequence = self.init_lists(T)
+        mu = np.zeros(self.nb_arms)
+        sigma = np.ones(self.nb_arms)
+        eta = self.MAB[0].eta  # eta is the same for all arms
         for t in range(T):
-            if t < self.nb_arms:
-                arm = t
-            else:
-                rmse = np.sqrt(
-                    1 / Na * np.array([np.sum((reward[np.where(arm_sequence == arm)] - (Sa / Na)[arm]) ** 2)
-                                       for arm in range(self.nb_arms)]))
-                x = np.array(
-                    [(Sa / Na)[i] - np.max(list(Sa / Na)[:i] + list(Sa / Na)[i + 1:]) for i in range(self.nb_arms)])
-                v = rmse * kgf(-np.absolute(x / (rmse + 10e-9)))
-                arm = rd_argmax(Sa / Na + (T - t) * v)
+            x = np.array(
+                [mu[i] - np.max(list(mu)[:i] + list(mu)[i + 1:]) for i in range(self.nb_arms)])
+            v = sigma * self.kgf(-np.absolute(x / (sigma + 10e-9)))
+            arm = rd_argmax(mu + (T - t) * v)
             self.update_lists(t, arm, Sa, Na, reward, arm_sequence)
+            mu[arm] = (mu[arm]/sigma[arm]**2 + reward[t+1]/eta**2)/(1/(sigma[arm]**2) + eta**(-2))
+            sigma[arm] = (1 / (sigma[arm] ** 2) + eta ** (-2)) ** (-1)
         return np.array(reward), np.array(arm_sequence)
 
     def multi_simul_KG(self, M, arm_sequence, arm, reward, Na, Sa, std, delta, T, t):
+        '''TODO: a finir'''
         reward_temp = list(reward[np.where(arm_sequence == arm)])
         Na_temp, Sa_temp, v_temp = Na[arm], Sa[arm], 0
         for k in range(M):
@@ -642,12 +648,15 @@ class GaussianMAP(GenericMAB):
         return std[arm], delta[arm], v_temp / M
 
     def KG_star(self, T, lbda=1):
+        '''TODO: a finir'''
         Sa, Na, reward, arm_sequence = self.init_lists(T)
         for t in range(T):
-            if t < self.nb_arms:
-                arm = t
+            if t < 2*self.nb_arms:
+                arm = t % self.nb_arms
             else:
-                std = np.array([np.std(reward[np.where(arm_sequence == arm)]) for arm in range(self.nb_arms)])
+                std = np.sqrt(
+                    1 / Na * np.array([np.sum((reward[np.where(arm_sequence == arm)] - (Sa / Na)[arm]) ** 2)
+                                       for arm in range(self.nb_arms)]))
                 delta = np.array(
                     [(Sa / Na)[i] - np.max(list(Sa / Na)[:i] + list(Sa / Na)[i + 1:]) for i in range(self.nb_arms)])
                 r = (delta / (std + 10e-9)) ** 2
@@ -661,8 +670,7 @@ class GaussianMAP(GenericMAB):
                         M = 1
                     else:
                         M = np.ceil(0.5 * ((m_lower + m_higher)[arm])).astype(int)  # approximation
-                    std[arm], delta[arm], v[arm] = self.multi_simul_KG(M, arm_sequence, arm, reward, Na, Sa, std, delta,
-                                                                       T, t)
+                    std[arm], delta[arm], v[arm] = self.multi_simul_KG(M, arm_sequence, arm, reward, Na, Sa, std, delta, T, t)
                 arm = rd_argmax(v)
             self.update_lists(t, arm, Sa, Na, reward, arm_sequence)
         return np.array(reward), np.array(arm_sequence)
