@@ -280,10 +280,13 @@ class BetaBernoulliMAB(GenericMAB):
     def IR(self, b1, b2):
         """
         Implementation of the Information Ratio for bernoulli bandits with beta prior
-        :param b1: list, first parameter of the beta distribution for each arm
-        :param b2: list, second parameter of the beta distribution for each arm
+        :param b1: np.array, first parameter of the beta distribution for each arm
+        :param b2: np.array, second parameter of the beta distribution for each arm
         :return: the two components of the Information ration delta and g
         """
+        assert type(b1) == np.ndarray, "b1 type should be an np.array"
+        assert type(b2) == np.ndarray, "b2 type should be an np.array"
+
         def joint_cdf(x):
             result = 1.
             for i in range(self.nb_arms):
@@ -313,10 +316,10 @@ class BetaBernoulliMAB(GenericMAB):
 
         ps = np.array([p_star(a) for a in range(self.nb_arms)])
         ma = np.array([MAA(a, ps) for a in range(self.nb_arms)])
-        maap = np.array([[MAAP(a, ap, ps) for a in range(self.nb_arms)] for ap in range(self.nb_arms)])
+        maap = np.array([[MAAP(a, ap, ps) for ap in range(self.nb_arms)] for a in range(self.nb_arms)])
         rho = (ps*ma).sum()
         delta = rho-b1/(b1+b2)
-        g = np.array([g(a, ps, maap.T) for a in range(self.nb_arms)])
+        g = np.array([g(a, ps, maap) for a in range(self.nb_arms)])
         return delta, g
 
     def IDS(self, T):
