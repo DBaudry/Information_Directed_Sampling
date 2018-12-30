@@ -332,7 +332,7 @@ class BetaBernoulliMAB(GenericMAB):
     @staticmethod
     def kl(x, y):
         """
-        Implementation of the Kullback-Leibler divergence
+        Implementation of the Kullback-Leibler divergence for two Bernoulli distributions (B(x),B(y))
         """
         return x * np.log(x/y) + (1-x) * np.log((1-x)/(1-y))
 
@@ -356,13 +356,14 @@ class BetaBernoulliMAB(GenericMAB):
             return beta.pdf(x, b1[a], b2[a])*joint_cdf(x)/beta.cdf(x, b1[a], b2[a])
 
         def p_star(a):
-            return integrate.quad(lambda x: dp_star(x, a), 0., 1., epsabs=1e-2)[0]  # result is a tuple (value, UB error)
+            return integrate.quad(lambda x: dp_star(x, a), 0., 1., epsabs=1e-2)[0]  # return a tuple (value, UB error)
 
         def MAA(a, p):
             return integrate.quad(lambda x: x*dp_star(x, a), 0., 1., epsabs=1e-2)[0]/p[a]
 
         def MAAP(ap, a, p):
-            return integrate.quad(lambda x: dp_star(x, a)*G(x, ap)/beta.cdf(x, b1[ap], b2[ap]), 0., 1., epsabs=1e-2)[0]/p[a]
+            return integrate.quad(lambda x: dp_star(x, a)*G(x, ap)/beta.cdf(x, b1[ap], b2[ap]), 0., 1., epsabs=1e-2)[0]\
+                   / p[a]
 
         def g(a, p, M):
             gp = p*(M[a]*np.log(M[a]*(b1+b2)/b1)+(1-M[a])*np.log((1-M[a])*(b1+b2)/b2))
