@@ -187,7 +187,6 @@ class GenericMAB:
             Sa[arm] += np.random.binomial(1, reward[t])-reward[t]
         return reward, arm_sequence
 
-
     def IDSAction(self, delta, g):
         Q = np.zeros((self.nb_arms, self.nb_arms))
         IR = np.zeros((self.nb_arms, self.nb_arms))
@@ -218,6 +217,7 @@ class GenericMAB:
 
     def BayesUCB(self, T, a, b, c=0.):
         raise NotImplementedError
+
 
 class BetaBernoulliMAB(GenericMAB):
     """
@@ -287,7 +287,7 @@ class BetaBernoulliMAB(GenericMAB):
         def joint_cdf(x):
             result = 1.
             for i in range(self.nb_arms):
-                result = result*beta.cdf(x, b1[i], b2[i])
+                result *= beta.cdf(x, b1[i], b2[i])
             return result
 
         def G(x, a):
@@ -297,6 +297,7 @@ class BetaBernoulliMAB(GenericMAB):
             return beta.pdf(x, b1[a], b2[a])*joint_cdf(x)/beta.cdf(x, b1[a], b2[a])
 
         def p_star(a):
+            # TODO: pourquoi 1e-2 (Yo)
             return integrate.quad(lambda x: dp_star(x, a), 0., 1., epsabs=1e-2)[0]  # return a tuple (value, UB error)
 
         def MAA(a, p):
@@ -325,8 +326,8 @@ class BetaBernoulliMAB(GenericMAB):
         :return: Reward obtained by the policy and sequence of chosen arms
         """
         Sa, Na, reward, arm_sequence = self.init_lists(T)
-        beta_1 = np.zeros(self.nb_arms)+1.
-        beta_2 = np.zeros(self.nb_arms)+1.
+        beta_1 = np.ones(self.nb_arms)
+        beta_2 = np.ones(self.nb_arms)
         for t in range(T):
             delta, g = self.IR(beta_1, beta_2)
             arm = self.IDSAction(delta, g)
