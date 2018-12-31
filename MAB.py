@@ -353,7 +353,7 @@ class BetaBernoulliMAB(GenericMAB):
         assert type(b1) == np.ndarray, "b1 type should be an np.array"
         assert type(b2) == np.ndarray, "b2 type should be an np.array"
         maap = np.zeros((self.nb_arms, self.nb_arms))
-        dp_star = np.apply_along_axis(lambda x: x*F_bar, 1, f/F)/N
+        dp_star = np.apply_along_axis(lambda x: x*F_bar, 1, f/F)/(N+1)
         dp_star[:, 0] = np.zeros(self.nb_arms)
         p_star = dp_star.sum(axis=1)
         ma = (X*dp_star).sum(axis=1)/p_star
@@ -362,7 +362,7 @@ class BetaBernoulliMAB(GenericMAB):
                 if a != ap:
                     joint_density = dp_star[a]*G[ap]/F[ap]
                     joint_density[0] = 0.
-                    maap[ap, a] = joint_density.sum()
+                    maap[ap, a] = joint_density.sum()/p_star[a]
                 else:
                     maap[ap, a] = ma[a]
         rho_star = np.inner(ma, p_star)
@@ -371,6 +371,9 @@ class BetaBernoulliMAB(GenericMAB):
         for arm in range(self.nb_arms):
             sum_log = maap[arm]*np.log(maap[arm]*(b1+b2)/b1) + (1-maap[arm])*np.log((1-maap[arm])*(b1+b2)/b2)
             g[arm] = np.inner(p_star, sum_log)
+        print('new iter')
+        print(delta)
+        print(g)
         return delta, g
 
     def init_approx(self, N):
@@ -389,11 +392,12 @@ class BetaBernoulliMAB(GenericMAB):
 
     def update_approx(self, arm, y, beta, X, f, F, F_bar, G, B):
         adjust = beta[0]*y+beta[1]*(1-y)
+        sign_F_update = 1. if y == 0 else 0.
         f[arm] = (X*y+(1-X)*(1-y))*beta.sum()/adjust*f[arm]
-        G[arm]=beta[0]/beta.sum()*(F[arm]-X**beta[0]*(1.-X)**beta[1]/beta[0]/B[arm])
+        G[arm] = beta[0]/beta.sum()*(F[arm]-X**beta[0]*(1.-X)**beta[1]/beta[0]/B[arm])
         F_bar = F_bar/F[arm]
         F_bar[0] = 0
-        F[arm] = F[arm] - X**beta[0]*(1.-X)**beta[1]/adjust/B[arm]
+        F[arm] = F[arm] + sign_F_update*X**beta[0]*(1.-X)**beta[1]/adjust/B[arm]
         F_bar = F_bar*F[arm]
         B[arm] = B[arm]*adjust/beta.sum()
         return f, F, F_bar, G, B
@@ -416,6 +420,7 @@ class BetaBernoulliMAB(GenericMAB):
             beta_1[arm] += reward[t]
             beta_2[arm] += 1-reward[t]
             f, F, F_bar, G, B = self.update_approx(arm, reward[t], prev_beta, X, f, F, F_bar, G, B)
+            print(arm, reward[t])
         return reward, arm_sequence
 
     def KG(self, T):
