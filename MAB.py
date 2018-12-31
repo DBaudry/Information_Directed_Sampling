@@ -25,7 +25,6 @@ class GenericMAB:
         """
         arms_list = list()
         for i, m in enumerate(meth):
-            print(i, m, par[i])
             p = par[i]
             if m == 'B':
                 arms_list.append(arms.ArmBernoulli(p, random_state=np.random.randint(1, 312414)))
@@ -224,19 +223,22 @@ class GenericMAB:
 
 
 class BetaBernoulliMAB(GenericMAB):
-    """
-    TODO: checker avec DODO mais pour moi c'est bien une distribution Bernoulli sur les bras avec un prior Beta dans
-    le cas bayésien
-    """
     def __init__(self, p):
         super().__init__(method=['B']*len(p), param=p)
         self.Cp = sum([(self.mu_max-x)/self.kl(x, self.mu_max) for x in self.means if x != self.mu_max])
+
+    @staticmethod
+    def kl(x, y):
+        """
+        Implementation of the Kullback-Leibler divergence for two Bernoulli distributions (B(x),B(y))
+        """
+        return x * np.log(x/y) + (1-x) * np.log((1-x)/(1-y))
 
     def TS(self, T):
         """
         Implementation of the Thomson Sampling algorithm
         :param T: number of rounds
-        :return: Reward obtained by the policy and sequence of the arms choosed
+        :return: Reward obtained by the policy and sequence of the chosen arms
         """
         Sa, Na, reward, arm_sequence = self.init_lists(T)
         theta = np.zeros(self.nb_arms)
@@ -274,13 +276,6 @@ class BetaBernoulliMAB(GenericMAB):
             self.update_lists(t, arm, Sa, Na, reward, arm_sequence)
         return reward, arm_sequence
 
-    @staticmethod
-    def kl(x, y):
-        """
-        Implementation of the Kullback-Leibler divergence for two Bernoulli distributions (B(x),B(y))
-        """
-        return x * np.log(x/y) + (1-x) * np.log((1-x)/(1-y))
-
     def IR(self, b1, b2):
         """
         Implementation of the Information Ratio for bernoulli bandits with beta prior
@@ -304,7 +299,6 @@ class BetaBernoulliMAB(GenericMAB):
             return beta.pdf(x, b1[a], b2[a])*joint_cdf(x)/beta.cdf(x, b1[a], b2[a])
 
         def p_star(a):
-            # TODO: pourquoi 1e-2 (Yo)
             return integrate.quad(lambda x: dp_star(x, a), 0., 1., epsabs=1e-2)[0]  # return a tuple (value, UB error)
 
         def MAA(a, p):
@@ -390,6 +384,11 @@ class BetaBernoulliMAB(GenericMAB):
         return X, f, F, F_bar, G, B
 
     def update_approx(self, arm, y, beta, X, f, F, F_bar, G, B):
+        """
+        Update all functions with recursion formula. These formula are all derived
+        using the properties of the beta distribution: the pdf and cdf of beta(a, b)
+         can be used to compute the cdf and pdf of beta(a+1, b) and beta(a, b+1)
+        """
         adjust = beta[0]*y+beta[1]*(1-y)
         sign_F_update = 1. if y == 0 else -1.
         F_bar=F_bar/F[arm]
@@ -425,7 +424,7 @@ class BetaBernoulliMAB(GenericMAB):
         """
         Implementation of Knowledge Gradient algorithm
         :param T: number of rounds
-        :return: Reward obtained by the policy and sequence of the arms choosed
+        :return: Reward obtained by the policy and sequence of the chosen arms
         """
         Sa, Na, reward, arm_sequence = self.init_lists(T)
         for t in range(T):
