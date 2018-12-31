@@ -6,7 +6,7 @@ from utils import rd_argmax
 import random
 from scipy.stats import beta, norm
 import scipy.integrate as integrate
-
+import copy
 
 class GenericMAB:
     def __init__(self, method, param):
@@ -312,16 +312,18 @@ class BetaBernoulliMAB(GenericMAB):
             return integrate.quad(lambda x: dp_star(x, a)*G(x, ap)/beta.cdf(x, b1[ap], b2[ap]), 0., 1., epsabs=1e-2)[0]\
                    / p[a]
 
-        def g(a, p, M):
+        def g(a, p, M, ma_value):
             gp = p*(M[a]*np.log(M[a]*(b1+b2)/b1)+(1-M[a])*np.log((1-M[a])*(b1+b2)/b2))
+            gp[a] = ma_value
             return gp.sum()
 
         ps = np.array([p_star(a) for a in range(self.nb_arms)])
         ma = np.array([MAA(a, ps) for a in range(self.nb_arms)])
         maap = np.array([[MAAP(a, ap, ps) for ap in range(self.nb_arms)] for a in range(self.nb_arms)])
+        np.fill_diagonal(maap, 0, wrap=False)
         rho = (ps*ma).sum()
         delta = rho-b1/(b1+b2)
-        g = np.array([g(a, ps, maap) for a in range(self.nb_arms)])
+        g = np.array([g(a, ps, maap, ma[a]) for a in range(self.nb_arms)])
         return delta, g
 
     def IDS(self, T):
@@ -339,6 +341,86 @@ class BetaBernoulliMAB(GenericMAB):
             self.update_lists(t, arm, Sa, Na, reward, arm_sequence)
             beta_1[arm] += reward[t]
             beta_2[arm] += 1-reward[t]
+        return reward, arm_sequence
+
+    def IR_approx(self, N, b1, b2, X, f, F, F_bar, G):
+        """
+        Implementation of the Information Ratio for bernoulli bandits with beta prior
+        :param b1: np.array, first parameter of the beta distribution for each arm
+        :param b2: np.array, second parameter of the beta distribution for each arm
+        :return: the two components of the Information ration delta and g
+        """
+        assert type(b1) == np.ndarray, "b1 type should be an np.array"
+        assert type(b2) == np.ndarray, "b2 type should be an np.array"
+        maap = np.zeros((self.nb_arms, self.nb_arms))
+        dp_star = np.apply_along_axis(lambda x: x*F_bar, 1, f/F)/(N+1)
+        dp_star[:, 0] = np.zeros(self.nb_arms)
+        p_star = dp_star.sum(axis=1)
+        ma = (X*dp_star).sum(axis=1)/p_star
+        for a in range(self.nb_arms):
+            for ap in range(self.nb_arms):
+                if a != ap:
+                    joint_density = dp_star[a]*G[ap]/F[ap]
+                    joint_density[0] = 0.
+                    maap[ap, a] = joint_density.sum()/p_star[a]
+                else:
+                    maap[ap, a] = ma[a]
+        rho_star = np.inner(ma, p_star)
+        delta = rho_star - b1/(b1+b2)
+        g = np.zeros(self.nb_arms)
+        for arm in range(self.nb_arms):
+            sum_log = maap[arm]*np.log(maap[arm]*(b1+b2)/b1) + (1-maap[arm])*np.log((1-maap[arm])*(b1+b2)/b2)
+            g[arm] = np.inner(p_star, sum_log)
+        print('new iter')
+        print(delta)
+        print(g)
+        return delta, g
+
+    def init_approx(self, N):
+        """
+        :param N: number of points to take in the [0,1] interval
+        :return: Initialisation of the arrays for the approximation of the integrals in IDS
+        The initialization is made for uniform prior (equivalent to beta(1,1))
+        """
+        X = np.linspace(0., 1., N+1)
+        f = np.ones((self.nb_arms, N+1))
+        F = np.repeat(X, self.nb_arms, axis=0).reshape((N+1, self.nb_arms)).T
+        G = F**2/2
+        F_bar = X**self.nb_arms
+        B = np.ones(self.nb_arms)
+        return X, f, F, F_bar, G, B
+
+    def update_approx(self, arm, y, beta, X, f, F, F_bar, G, B):
+        adjust = beta[0]*y+beta[1]*(1-y)
+        sign_F_update = 1. if y == 0 else 0.
+        f[arm] = (X*y+(1-X)*(1-y))*beta.sum()/adjust*f[arm]
+        G[arm] = beta[0]/beta.sum()*(F[arm]-X**beta[0]*(1.-X)**beta[1]/beta[0]/B[arm])
+        F_bar = F_bar/F[arm]
+        F_bar[0] = 0
+        F[arm] = F[arm] + sign_F_update*X**beta[0]*(1.-X)**beta[1]/adjust/B[arm]
+        F_bar = F_bar*F[arm]
+        B[arm] = B[arm]*adjust/beta.sum()
+        return f, F, F_bar, G, B
+
+    def IDS_approx(self, T, N_steps):
+        """
+        Implementation of the Information Directed Sampling with approximation of integrals
+        :param T: number of rounds
+        :return: Reward obtained by the policy and sequence of chosen arms
+        """
+        Sa, Na, reward, arm_sequence = self.init_lists(T)
+        X, f, F, F_bar, G, B = self.init_approx(N_steps)
+        beta_1 = np.ones(self.nb_arms)
+        beta_2 = np.ones(self.nb_arms)
+        for t in range(T):
+            delta, g = self.IR_approx(N_steps, beta_1, beta_2, X, f, F, F_bar, G)
+            arm = self.IDSAction(delta, g)
+            self.update_lists(t, arm, Sa, Na, reward, arm_sequence)
+            prev_beta = np.array([copy.copy(beta_1[arm]), copy.copy(beta_2[arm])])
+            beta_1[arm] += reward[t]
+            beta_2[arm] += 1-reward[t]
+            f, F, F_bar, G, B = self.update_approx(arm, reward[t], prev_beta, X, f, F, F_bar, G, B)
+            print(arm, reward[t])
         return reward, arm_sequence
 
     def KG(self, T):
