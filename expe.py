@@ -128,6 +128,10 @@ def build_finite(L, K, N):
 
 
 def build_finite_deterministic():
+    """
+    Building a given finite MAB with 2 possible values for theta, 5 arms and eleven different rewards
+    :return: Parameters required for launching an experiment with a finite bandit (prior, q values and R function)
+    """
     R = np.linspace(0., 1., 11)
     q = np.random.uniform(size=(2, 5, 11))
     for i in range(q.shape[0]):
