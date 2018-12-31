@@ -89,7 +89,8 @@ def sanity_check_expe():
         plt.legend()
     plt.show()
 
-def check_finite(prior, q, R,theta, N, T):
+
+def check_finite(prior, q, R, theta, N, T):
     method = ['F']*q.shape[1]
     param = [[np.arange(q.shape[2]), q[theta, i, :]] for i in range(q.shape[1])]
     my_MAB = mab.FiniteSets(method, param, q, prior, R)
@@ -106,3 +107,34 @@ def check_finite(prior, q, R,theta, N, T):
     plt.xlabel('Rounds')
     plt.legend()
     plt.show()
+
+
+def build_finite(L, K, N):
+    """
+    Building automatically a finite bandit environment
+    :param L: Number of possible values for theta
+    :param K: Number of arms
+    :param N: Number of possible rewards
+    :return: Parameters required for launching an experiment with a finite bandit (prior, q values and R function)
+    """
+    R = np.linspace(0., 1., N)
+    q = np.random.uniform(size=(L, K, N))
+    for i in range(q.shape[0]):
+        q[i] = np.apply_along_axis(lambda x: x / x.sum(), 1, q[i])
+        # For a given theta and a given arm, the sum over the reward should be one
+    p = np.random.uniform(0, 1, L)  # In case of a random prior
+    p = p / p.sum()
+    return p, q, R
+
+
+def build_finite_deterministic():
+    """
+    Building a given finite MAB with 2 possible values for theta, 5 arms and eleven different rewards
+    :return: Parameters required for launching an experiment with a finite bandit (prior, q values and R function)
+    """
+    R = np.linspace(0., 1., 11)
+    q = np.random.uniform(size=(2, 5, 11))
+    for i in range(q.shape[0]):
+        q[i] = np.apply_along_axis(lambda x: x / x.sum(), 1, q[i])
+    p = np.array([0.35, 0.65])
+    return p, q, R

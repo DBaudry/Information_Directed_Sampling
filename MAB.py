@@ -455,13 +455,14 @@ class BetaBernoulliMAB(GenericMAB):
 
 class FiniteSets(GenericMAB):
     def __init__(self, method, param, q_theta, prior, R):
-        '''
+        """
         theta in [1,L], Y in [1,N], A in [1,K]
+        K is the number of arms in our algorithm and is denoted nb_arms
         :param method: list with the types for each arm
         :param param: list with the parameters for each arm
         :param q_theta: L*K*N array with the probability of each outcome knowing theta
         :param R: mapping between outcomes and rewards
-        '''
+        """
         super().__init__(method, param)
         self.means = [(R*p[1]).sum() for p in param]
         self.mu_max = max(self.means)
@@ -474,20 +475,20 @@ class FiniteSets(GenericMAB):
         self.Ta = self.get_theta_a()
 
     def get_theta_a(self):
-        '''
+        """
         :return: list of length K containing the lists of theta for which action a in [1,K] is optimal
-        '''
-        Ta = [[] for a in range(self.nb_arms)]
+        """
+        Ta = [[] for _ in range(self.nb_arms)]
         for theta in range(self.L):
-            a_theta = rd_argmax(np.dot(self.q_theta[theta, :, :], self.R))
+            a_theta = rd_argmax(np.dot(self.q_theta[theta], self.R))
             Ta[a_theta].append(theta)
         return Ta
 
     def get_pa_star(self):
-        '''
+        """
         :return: array of shape K
          For a given prior, the probabilities that action a in [1,K] is the optimal action
-        '''
+        """
         pa = np.zeros(self.nb_arms)
         for a_star in range(self.nb_arms):
             for x in self.Ta[a_star]:
@@ -495,28 +496,24 @@ class FiniteSets(GenericMAB):
         return pa
 
     def get_py(self):
-        '''
+        """
         :return: array of shape (K,N)
         Probability of outcome Y while pulling arm A for a given prior
-        '''
+        """
         PY = np.zeros((self.nb_arms, self.N))
         for a in range(self.nb_arms):
-            for y in range(self.N):
-                for x in range(self.L):
-                    PY[a, y] += self.prior[x]*self.q_theta[x, a, y]
+            PY[a] = self.q_theta[:, a, :].T @ self.prior
         return PY
 
     def get_joint_ay(self):
-        '''
+        """
         :return: Array of shape (K,K,N)
         Joint distribution of the outcome and the optimal arm while pulling arm a
-        '''
+        """
         P_ay = np.zeros((self.nb_arms, self.nb_arms, self.N))
-        for a in range(self.nb_arms):
-            for a_star in range(self.nb_arms):
-                for y in range(self.N):
-                    for x in self.Ta[a_star]:
-                        P_ay[a, a_star, y] += self.q_theta[x, a, y]*self.prior[x]
+        for a_star in range(self.nb_arms):
+            for theta in self.Ta[a_star]:
+                P_ay[:, a_star, :] += self.q_theta[theta] * self.prior[theta]
         return P_ay
 
     def get_R_star(self, joint_P):
