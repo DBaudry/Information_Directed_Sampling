@@ -414,23 +414,20 @@ class FiniteSets(GenericMAB):
         return pa
 
     def get_py(self):
-        '''
+        """
         :return: array of shape (K,N)
         Probability of outcome Y while pulling arm A for a given prior
-        TODO: can be implemented faster by using matrix product rather than triple for loop
-        '''
+        """
         PY = np.zeros((self.nb_arms, self.N))
         for a in range(self.nb_arms):
-            for y in range(self.N):
-                for theta_val in range(self.L):
-                    PY[a, y] += self.prior[theta_val] * self.q_theta[theta_val, a, y]
+            PY[a] = self.q_theta[:, a, :].T @ self.prior
         return PY
 
     def get_joint_ay(self):
-        '''
+        """
         :return: Array of shape (K,K,N)
         Joint distribution of the outcome and the optimal arm while pulling arm a
-        '''
+        """
         P_ay = np.zeros((self.nb_arms, self.nb_arms, self.N))
         for a in range(self.nb_arms):
             for a_star in range(self.nb_arms):
