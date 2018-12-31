@@ -1,13 +1,7 @@
-# Information Directed Sampling on Multi Arm Bandit problems
+# Information Directed Sampling for Multi-Arm Bandit problems
 
-Implementation of Russo and Van Roy (2016)
+Based on Russo & Van Roy (2018): Learning to optimize via Information Directed Sampling.
+The aim of this project is to reproduce the experiments in the paper and to check new examples. We built classes to sample from different types of arm
+in a Multi Arm Bandit. Then, different algorithms are implemented to solve the problem of regret minimization.
 
-## Simulate a Multi-Arm bandit
-
-The arms.py file provides the bricks to add arms with different probability laws for the reward. The MAB.py file builds a multi-arm bandit given 
-the arms as input and provide the Upper-Confidence-Bound (UCB) and Thompson Sampling (TS) to find the best arm.
-
-## Linear Bandit
-
-LinearMAB.py contains a class to implement a Linear Bandit problem and the LinUCB algorithm to minimize the regret and find the best feature vector.
-
+We first focus on three kind of problems: Bernoulli bandits with beta prior on the parameters, gaussian bandits, and Bandits with Finite arms (i.e finite parameter space, finite action space and finite rewards space)
