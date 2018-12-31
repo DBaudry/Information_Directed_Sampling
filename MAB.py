@@ -429,11 +429,9 @@ class FiniteSets(GenericMAB):
         Joint distribution of the outcome and the optimal arm while pulling arm a
         """
         P_ay = np.zeros((self.nb_arms, self.nb_arms, self.N))
-        for a in range(self.nb_arms):
-            for a_star in range(self.nb_arms):
-                for y in range(self.N):
-                    for x in self.Ta[a_star]:
-                        P_ay[a, a_star, y] += self.q_theta[x, a, y]*self.prior[x]
+        for a_star in range(self.nb_arms):
+            for theta in self.Ta[a_star]:
+                P_ay[:, a_star, :] += self.q_theta[theta] * self.prior[theta]
         return P_ay
 
     def get_R_star(self, joint_P):
