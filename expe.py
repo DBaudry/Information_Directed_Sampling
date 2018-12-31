@@ -7,9 +7,6 @@ import matplotlib.pyplot as plt
 from scipy.stats import norm
 from tqdm import tqdm
 
-
-## Try to find out which bounds guarantee a good approximation of integrals without Monte-Carlo in the Gaussian Case
-
 def approxIntegral():
     mu = np.random.uniform(-100, 100, 9)
     sigma = np.random.uniform(0, 100, 9)
@@ -21,13 +18,10 @@ def approxIntegral():
             result = result * norm.cdf(x, mu[a], sigma[a])
         return result
 
-
     def dp_star(x, a):
         return joint_cdf(x) / norm.cdf(x, mu[a], sigma[a])*norm.pdf(x, mu[a], sigma[a]) #
 
-
     Y, X = [[] for _ in range(nb_arms)], [[] for _ in range(nb_arms)]
-
     for a in tqdm(range(nb_arms), desc='Computing dp_star for all actions'):
         x_sup = np.max([np.max(mu)+3*np.max(sigma), mu[a]+3*sigma[a]])
         x_inf = np.min([np.min(mu)-3*np.max(sigma), mu[a]-3*sigma[a]])
@@ -46,29 +40,36 @@ def approxIntegral():
     plt.show()
 
 
+default_param = {
+    'UCB1': 0.2,
+    'MOSS': 0.2,
+    'ExploreCommit': 50,
+    'IDS_approx': 1000
+}
 
-def comprehension():
-    p1 = [0.05, 0.4, 0.7, 0.90]
-    N1 = 50
-    my_MAB = mab.BetaBernoulliMAB(p1)
-    plt.plot(my_MAB.MC_regret(method='UCB1', N=N1, T=1000, param=0.2), label='UCB1')
-    plt.plot(my_MAB.MC_regret(method='MOSS', N=N1, T=1000), label='MOSS')
-    plt.plot(my_MAB.MC_regret(method='TS', N=N1, T=1000), label='TS')
-    plt.plot(my_MAB.MC_regret(method='IDS_approx', N=N1, T=1000), label='IDS')
-    plt.ylabel('Cumulative Regret')
-    plt.xlabel('Rounds')
-    plt.legend()
-    plt.show()
-    return 0
- #       plt.subplot(121 + i)
- #       plt.plot(my_MAB.MC_regret(method='UCB1', N=N1, T=1000, rho=0.2), label='UCB1')
- #       plt.plot(my_MAB.MC_regret(method='Random', N=N1, T=1000, rho=0.), label='Random')
- #       plt.plot(my_MAB.MC_regret(method='TS', N=N1, T=1000), label='TS')
- #       plt.plot(my_MAB.Cp * np.log(np.arange(1, 1001)))
- #       plt.ylabel('Cumulative Regret')
- #       plt.xlabel('Rounds')
- #       plt.legend()
- #   plt.show()
+
+def beta_bernoulli_expe(n_expe, n_arms, T, methods=['UCB1', 'MOSS', 'TS', 'KG', 'IDS_approx'], param=default_param, doplot=False):
+    all_regrets = np.zeros((len(methods), n_expe, T))
+    res = {}
+    for j in tqdm(range(n_expe)):
+        p = np.random.uniform(size=n_arms)
+        my_mab = mab.BetaBernoulliMAB(p)
+        res['UCB1'] = my_mab.regret(my_mab.UCB1(T, rho=param['UCB1'])[0], T)
+        res['TS'] = my_mab.regret(my_mab.TS(T)[0], T)
+        res['MOSS'] = my_mab.regret(my_mab.MOSS(T, rho=param['MOSS'])[0], T)
+        res['KG'] = my_mab.regret(my_mab.KG(T)[0], T)
+        res['IDS_approx'] = my_mab.regret(my_mab.IDS_approx(T, N_steps=param['IDS_approx'])[0], T)
+        for i, m in enumerate(methods):
+            all_regrets[i, j] = res[m]
+    MC_regret = all_regrets.sum(axis=1)/n_expe
+    if doplot:
+        for i in range(len(methods)):
+            plt.plot(MC_regret[i], label=methods[i])
+        plt.ylabel('Cumulative Regret')
+        plt.xlabel('Rounds')
+        plt.legend()
+        plt.show()
+    return MC_regret
 
 
 def sanity_check_expe():
