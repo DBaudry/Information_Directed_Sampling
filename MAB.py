@@ -398,15 +398,15 @@ class FiniteSets(GenericMAB):
         """
         Ta = [[] for _ in range(self.nb_arms)]
         for theta in range(self.L):
-            a_theta = rd_argmax(np.dot(self.q_theta[theta, :, :], self.R))
+            a_theta = rd_argmax(np.dot(self.q_theta[theta], self.R))
             Ta[a_theta].append(theta)
         return Ta
 
     def get_pa_star(self):
-        '''
+        """
         :return: array of shape K
          For a given prior, the probabilities that action a in [1,K] is the optimal action
-        '''
+        """
         pa = np.zeros(self.nb_arms)
         for a_star in range(self.nb_arms):
             for x in self.Ta[a_star]:
@@ -417,12 +417,13 @@ class FiniteSets(GenericMAB):
         '''
         :return: array of shape (K,N)
         Probability of outcome Y while pulling arm A for a given prior
+        TODO: can be implemented faster by using matrix product rather than triple for loop
         '''
         PY = np.zeros((self.nb_arms, self.N))
         for a in range(self.nb_arms):
             for y in range(self.N):
-                for x in range(self.L):
-                    PY[a, y] += self.prior[x]*self.q_theta[x, a, y]
+                for theta_val in range(self.L):
+                    PY[a, y] += self.prior[theta_val] * self.q_theta[theta_val, a, y]
         return PY
 
     def get_joint_ay(self):
