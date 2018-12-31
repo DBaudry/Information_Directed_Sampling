@@ -76,6 +76,8 @@ class GenericMAB:
                 MC_regret += self.regret(self.ExploreCommit(m=param, T=T)[0], T)
             elif method == 'BayesUCB':
                 MC_regret += self.regret(self.BayesUCB(T=T, a=1., b=1., c=0.)[0], T)
+            elif method == 'IDS_approx':
+                MC_regret += self.regret(self.IDS_approx(T=T, N_steps=1000)[0], T)
             else:
                 raise NotImplementedError
         return MC_regret / N
@@ -371,9 +373,6 @@ class BetaBernoulliMAB(GenericMAB):
         for arm in range(self.nb_arms):
             sum_log = maap[arm]*np.log(maap[arm]*(b1+b2)/b1) + (1-maap[arm])*np.log((1-maap[arm])*(b1+b2)/b2)
             g[arm] = np.inner(p_star, sum_log)
-        print('new iter')
-        print(delta)
-        print(g)
         return delta, g
 
     def init_approx(self, N):
@@ -392,10 +391,10 @@ class BetaBernoulliMAB(GenericMAB):
 
     def update_approx(self, arm, y, beta, X, f, F, F_bar, G, B):
         adjust = beta[0]*y+beta[1]*(1-y)
-        sign_F_update = 1. if y == 0 else 0.
+        sign_F_update = 1. if y == 0 else -1.
+        F_bar=F_bar/F[arm]
         f[arm] = (X*y+(1-X)*(1-y))*beta.sum()/adjust*f[arm]
         G[arm] = beta[0]/beta.sum()*(F[arm]-X**beta[0]*(1.-X)**beta[1]/beta[0]/B[arm])
-        F_bar = F_bar/F[arm]
         F_bar[0] = 0
         F[arm] = F[arm] + sign_F_update*X**beta[0]*(1.-X)**beta[1]/adjust/B[arm]
         F_bar = F_bar*F[arm]
@@ -420,7 +419,6 @@ class BetaBernoulliMAB(GenericMAB):
             beta_1[arm] += reward[t]
             beta_2[arm] += 1-reward[t]
             f, F, F_bar, G, B = self.update_approx(arm, reward[t], prev_beta, X, f, F, F_bar, G, B)
-            print(arm, reward[t])
         return reward, arm_sequence
 
     def KG(self, T):
