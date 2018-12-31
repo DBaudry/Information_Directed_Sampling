@@ -138,3 +138,23 @@ def build_finite_deterministic():
         q[i] = np.apply_along_axis(lambda x: x / x.sum(), 1, q[i])
     p = np.array([0.35, 0.65])
     return p, q, R
+
+def check_gaussian():
+    mu = np.random.normal(0, 1, 6)
+    sigma = [1]*len(mu)
+    p = []
+    for i in range(len(mu)):
+        p.append([mu[i], sigma[i]])
+    N1 = 1000
+    plt.figure(1)
+    my_MAB = mab.GaussianMAB(p)
+    print(my_MAB.MAB)
+    plt.plot(my_MAB.MC_regret(method='UCB1', N=N1, T=1000, param=0.2), label='UCB1')
+    plt.plot(my_MAB.MC_regret(method='TS', N=N1, T=1000), label='TS')
+    plt.plot(my_MAB.MC_regret(method='KG', N=N1, T=1000), label='KG')
+    #plt.plot(my_MAB.MC_regret(method='KG*', N=N1, T=1000), label='KG*')
+    #plt.plot(my_MAB.MC_regret(method='IDS', N=N1, T=1000), label='IDS')
+    plt.ylabel('Cumulative Regret')
+    plt.xlabel('Rounds')
+    plt.legend()
+    plt.show()
