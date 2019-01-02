@@ -53,7 +53,10 @@ class GenericMAB:
         """
         Monte Carlo method for approximating the expectation of the regret.
         :param method: Method used (UCB, Thomson Sampling, etc..)
-        TODO: pourquoi param=0.2 et au-dessus c'est marqué method used ? il correspond a quoi ce parametre?
+        :param N: Number of independent Monte Carlo simulation
+        :param T: Number of rounds for each simulation
+        :param param: Parameters for the different methods, can be the value of rho for UCB model or an int
+        corresponding to the number of rounds of exploration for the ExploreCommit method
         """
         MC_regret = np.zeros(T)
         for _ in tqdm(range(N), desc='Computing ' + str(N) + ' simulations'):
