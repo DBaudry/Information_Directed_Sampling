@@ -200,8 +200,10 @@ class GenericMAB:
             for ap in range(self.nb_arms):
                 da, dap = delta[a], delta[ap]
                 ga, gap = g[a], g[ap]
-                q1 = -dap/(da-dap)
+                q1 = -1
                 q2 = -1.
+                if ga != gap:
+                    q1 = -dap/(da-dap)
                 if ga != gap:
                     q2 = q1-2*gap/(ga-gap)
                 if 0 <= q1 <= 1:
