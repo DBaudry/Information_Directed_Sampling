@@ -6,7 +6,7 @@ from utils import rd_argmax
 import random
 from scipy.stats import beta, norm
 import scipy.integrate as integrate
-
+import copy
 
 class GenericMAB:
     def __init__(self, method, param):
@@ -25,7 +25,6 @@ class GenericMAB:
         """
         arms_list = list()
         for i, m in enumerate(meth):
-            print(i, m, par[i])
             p = par[i]
             if m == 'B':
                 arms_list.append(arms.ArmBernoulli(p, random_state=np.random.randint(1, 312414)))
@@ -76,6 +75,8 @@ class GenericMAB:
                 MC_regret += self.regret(self.ExploreCommit(m=param, T=T)[0], T)
             elif method == 'BayesUCB':
                 MC_regret += self.regret(self.BayesUCB(T=T, a=1., b=1., c=0.)[0], T)
+            elif method == 'IDS_approx':
+                MC_regret += self.regret(self.IDS_approx(T=T, N_steps=1000)[0], T)
             else:
                 raise NotImplementedError
         return MC_regret / N
@@ -222,19 +223,22 @@ class GenericMAB:
 
 
 class BetaBernoulliMAB(GenericMAB):
-    """
-    TODO: checker avec DODO mais pour moi c'est bien une distribution Bernoulli sur les bras avec un prior Beta dans
-    le cas bayésien
-    """
     def __init__(self, p):
         super().__init__(method=['B']*len(p), param=p)
         self.Cp = sum([(self.mu_max-x)/self.kl(x, self.mu_max) for x in self.means if x != self.mu_max])
+
+    @staticmethod
+    def kl(x, y):
+        """
+        Implementation of the Kullback-Leibler divergence for two Bernoulli distributions (B(x),B(y))
+        """
+        return x * np.log(x/y) + (1-x) * np.log((1-x)/(1-y))
 
     def TS(self, T):
         """
         Implementation of the Thomson Sampling algorithm
         :param T: number of rounds
-        :return: Reward obtained by the policy and sequence of the arms choosed
+        :return: Reward obtained by the policy and sequence of the chosen arms
         """
         Sa, Na, reward, arm_sequence = self.init_lists(T)
         theta = np.zeros(self.nb_arms)
@@ -272,13 +276,6 @@ class BetaBernoulliMAB(GenericMAB):
             self.update_lists(t, arm, Sa, Na, reward, arm_sequence)
         return reward, arm_sequence
 
-    @staticmethod
-    def kl(x, y):
-        """
-        Implementation of the Kullback-Leibler divergence for two Bernoulli distributions (B(x),B(y))
-        """
-        return x * np.log(x/y) + (1-x) * np.log((1-x)/(1-y))
-
     def IR(self, b1, b2):
         """
         Implementation of the Information Ratio for bernoulli bandits with beta prior
@@ -311,16 +308,18 @@ class BetaBernoulliMAB(GenericMAB):
             return integrate.quad(lambda x: dp_star(x, a)*G(x, ap)/beta.cdf(x, b1[ap], b2[ap]), 0., 1., epsabs=1e-2)[0]\
                    / p[a]
 
-        def g(a, p, M):
+        def g(a, p, M, ma_value):
             gp = p*(M[a]*np.log(M[a]*(b1+b2)/b1)+(1-M[a])*np.log((1-M[a])*(b1+b2)/b2))
+            gp[a] = ma_value
             return gp.sum()
 
         ps = np.array([p_star(a) for a in range(self.nb_arms)])
         ma = np.array([MAA(a, ps) for a in range(self.nb_arms)])
         maap = np.array([[MAAP(a, ap, ps) for ap in range(self.nb_arms)] for a in range(self.nb_arms)])
+        np.fill_diagonal(maap, 0, wrap=False)
         rho = (ps*ma).sum()
         delta = rho-b1/(b1+b2)
-        g = np.array([g(a, ps, maap) for a in range(self.nb_arms)])
+        g = np.array([g(a, ps, maap, ma[a]) for a in range(self.nb_arms)])
         return delta, g
 
     def IDS(self, T):
@@ -340,11 +339,92 @@ class BetaBernoulliMAB(GenericMAB):
             beta_2[arm] += 1-reward[t]
         return reward, arm_sequence
 
+    def IR_approx(self, N, b1, b2, X, f, F, F_bar, G):
+        """
+        Implementation of the Information Ratio for bernoulli bandits with beta prior
+        :param b1: np.array, first parameter of the beta distribution for each arm
+        :param b2: np.array, second parameter of the beta distribution for each arm
+        :return: the two components of the Information ration delta and g
+        """
+        assert type(b1) == np.ndarray, "b1 type should be an np.array"
+        assert type(b2) == np.ndarray, "b2 type should be an np.array"
+        maap = np.zeros((self.nb_arms, self.nb_arms))
+        dp_star = np.apply_along_axis(lambda x: x*F_bar, 1, f/F)/(N+1)
+        dp_star[:, 0] = np.zeros(self.nb_arms)
+        p_star = dp_star.sum(axis=1)
+        ma = (X*dp_star).sum(axis=1)/p_star
+        for a in range(self.nb_arms):
+            for ap in range(self.nb_arms):
+                if a != ap:
+                    joint_density = dp_star[a]*G[ap]/F[ap]
+                    joint_density[0] = 0.
+                    maap[ap, a] = joint_density.sum()/p_star[a]
+                else:
+                    maap[ap, a] = ma[a]
+        rho_star = np.inner(ma, p_star)
+        delta = rho_star - b1/(b1+b2)
+        g = np.zeros(self.nb_arms)
+        for arm in range(self.nb_arms):
+            sum_log = maap[arm]*np.log(maap[arm]*(b1+b2)/b1) + (1-maap[arm])*np.log((1-maap[arm])*(b1+b2)/b2)
+            g[arm] = np.inner(p_star, sum_log)
+        return delta, g
+
+    def init_approx(self, N):
+        """
+        :param N: number of points to take in the [0,1] interval
+        :return: Initialisation of the arrays for the approximation of the integrals in IDS
+        The initialization is made for uniform prior (equivalent to beta(1,1))
+        """
+        X = np.linspace(0., 1., N+1)
+        f = np.ones((self.nb_arms, N+1))
+        F = np.repeat(X, self.nb_arms, axis=0).reshape((N+1, self.nb_arms)).T
+        G = F**2/2
+        F_bar = X**self.nb_arms
+        B = np.ones(self.nb_arms)
+        return X, f, F, F_bar, G, B
+
+    def update_approx(self, arm, y, beta, X, f, F, F_bar, G, B):
+        """
+        Update all functions with recursion formula. These formula are all derived
+        using the properties of the beta distribution: the pdf and cdf of beta(a, b)
+         can be used to compute the cdf and pdf of beta(a+1, b) and beta(a, b+1)
+        """
+        adjust = beta[0]*y+beta[1]*(1-y)
+        sign_F_update = 1. if y == 0 else -1.
+        F_bar=F_bar/F[arm]
+        f[arm] = (X*y+(1-X)*(1-y))*beta.sum()/adjust*f[arm]
+        G[arm] = beta[0]/beta.sum()*(F[arm]-X**beta[0]*(1.-X)**beta[1]/beta[0]/B[arm])
+        F_bar[0] = 0
+        F[arm] = F[arm] + sign_F_update*X**beta[0]*(1.-X)**beta[1]/adjust/B[arm]
+        F_bar = F_bar*F[arm]
+        B[arm] = B[arm]*adjust/beta.sum()
+        return f, F, F_bar, G, B
+
+    def IDS_approx(self, T, N_steps):
+        """
+        Implementation of the Information Directed Sampling with approximation of integrals
+        :param T: number of rounds
+        :return: Reward obtained by the policy and sequence of chosen arms
+        """
+        Sa, Na, reward, arm_sequence = self.init_lists(T)
+        X, f, F, F_bar, G, B = self.init_approx(N_steps)
+        beta_1 = np.ones(self.nb_arms)
+        beta_2 = np.ones(self.nb_arms)
+        for t in range(T):
+            delta, g = self.IR_approx(N_steps, beta_1, beta_2, X, f, F, F_bar, G)
+            arm = self.IDSAction(delta, g)
+            self.update_lists(t, arm, Sa, Na, reward, arm_sequence)
+            prev_beta = np.array([copy.copy(beta_1[arm]), copy.copy(beta_2[arm])])
+            beta_1[arm] += reward[t]
+            beta_2[arm] += 1-reward[t]
+            f, F, F_bar, G, B = self.update_approx(arm, reward[t], prev_beta, X, f, F, F_bar, G, B)
+        return reward, arm_sequence
+
     def KG(self, T):
         """
         Implementation of Knowledge Gradient algorithm
         :param T: number of rounds
-        :return: Reward obtained by the policy and sequence of the arms choosed
+        :return: Reward obtained by the policy and sequence of the chosen arms
         """
         Sa, Na, reward, arm_sequence = self.init_lists(T)
         for t in range(T):
@@ -481,33 +561,45 @@ class FiniteSets(GenericMAB):
         return reward, arm_sequence
 
 
-class GaussianMAP(GenericMAB):
+class GaussianMAB(GenericMAB):
     """
     TODO: BayesUCB to adapt for gaussian bandits
     """
     def __init__(self, p):
         super().__init__(method=['G']*len(p), param=p)
-        self.Cp = sum([(self.mu_max-x)/self.kl(x, self.mu_max) for x in self.means if x != self.mu_max])
 
-    def TS(self, T, alpha=0):
+    def TS(self, T):
         """
         Implementation of the Thomson Sampling algorithm
         :param T: number of rounds
         :return: Reward obtained by the policy and sequence of the arms choosed
-        TODO: a finir
         """
+        # Sa, Na, reward, arm_sequence = self.init_lists(T)
+        # mu, S = np.zeros(self.nb_arms), np.zeros(self.nb_arms)
+        # n_bar = np.max(2, 3-np.ceil(2*alpha))
+        # for t in range(T):
+        #     if t < self.nb_arms * n_bar:
+        #         arm = t % self.nb_arms
+        #     else:
+        #         for k in range(self.nb_arms):
+        #             S[k] = sum([r**2 for r in reward[np.where(arm_sequence==k)]]) - Sa[k]**2/Na[k]
+        #             mu[k] = Sa[k]/Na[k] + np.sqrt(S[k]/(Na[k]*(Na[k]+2*alpha-1))) * np.random.standard_t(Na[k]+2*alpha-1,1)
+        #         arm = rd_argmax(mu)
+        #     self.update_lists(t, arm, Sa, Na, reward, arm_sequence)
         Sa, Na, reward, arm_sequence = self.init_lists(T)
-        mu, S = np.zeros(self.nb_arms), np.zeros(self.nb_arms)
-        n_bar = np.max(2, 3-np.ceil(2*alpha))
+        mu, sigma = np.zeros(self.nb_arms), np.ones(self.nb_arms)
         for t in range(T):
-            if t < self.nb_arms * n_bar:
+            if t < 2*self.nb_arms+1:
                 arm = t % self.nb_arms
+                self.update_lists(t, arm, Sa, Na, reward, arm_sequence)
+                mu[arm] = Sa[arm] / Na[arm]
+                sigma[arm] = 1/Na[arm]*(sum([r ** 2 for r in reward[np.where(arm_sequence == arm)]]) - Sa[arm] ** 2 / Na[arm])
             else:
-                for k in range(self.nb_arms):
-                    S[k] = sum([r**2 for r in reward[np.where(arm_sequence==k)]]) - Sa[k]**2/Na[k]
-                    mu[k] = Sa[k]/Na[k] + np.sqrt(S[k]/(Na[k]*(Na[k]+2*alpha-1))) * np.random.standard_t(Na[k]+2*alpha-1,1)
                 arm = rd_argmax(mu)
-            self.update_lists(t, arm, Sa, Na, reward, arm_sequence)
+                eta = self.MAB[arm].eta
+                self.update_lists(t, arm, Sa, Na, reward, arm_sequence)
+                mu[arm] = (eta**2 * mu[arm] + reward[t] * sigma[arm]**2) / (eta**2 + sigma[arm]**2)
+                sigma[arm] = (eta*sigma[arm])**2 / (eta**2 + sigma[arm]**2)
         return reward, arm_sequence
 
 
@@ -541,6 +633,14 @@ class GaussianMAP(GenericMAB):
         Implementation of the Kullback-Leibler divergence
         """
         return x * np.log(x/y) + (1-x) * np.log((1-x)/(1-y))
+
+    def kl_inf(self, x, y):
+        """
+        Implementation of the Kullback-Leibler divergence introduced by Burnetas and Katehakis (1996) for
+        non-binary rewards in [0,1]
+        """
+        return np.min([self.kl(x, z) for z in self.means if z > y])
+
 
     def IR(self, mu, sigma):
         """
@@ -601,8 +701,8 @@ class GaussianMAP(GenericMAB):
             arm = self.IDSAction(delta, v)
             eta = self.MAB[arm].eta
             self.update_lists(t, arm, Sa, Na, reward, arm_sequence)
-            mu[arm] = (mu[arm]/sigma[arm]**2 + reward[t+1]/eta**2)/(1/(sigma[arm]**2) + eta**(-2))
-            sigma[arm] = (1/(sigma[arm]**2) + eta**(-2))**(-1)
+            mu[arm] = (eta ** 2 * mu[arm] + reward[t] * sigma[arm] ** 2) / (eta ** 2 + sigma[arm] ** 2)
+            sigma[arm] = (eta * sigma[arm]) ** 2 / (eta ** 2 + sigma[arm] ** 2)
         return reward, arm_sequence
 
     def kgf(self, x):
@@ -613,51 +713,56 @@ class GaussianMAP(GenericMAB):
         Implementation of Knowledge Gradient algorithm
         :param T: number of rounds
         :return: Reward obtained by the policy and sequence of the arms chosen
-        TODO: a finir
         """
         Sa, Na, reward, arm_sequence = self.init_lists(T)
         mu = np.zeros(self.nb_arms)
         sigma = np.ones(self.nb_arms)
-        eta = self.MAB[0].eta  # eta is the same for all arms
         for t in range(T):
-            x = np.array(
-                [mu[i] - np.max(list(mu)[:i] + list(mu)[i + 1:]) for i in range(self.nb_arms)])
-            v = sigma * self.kgf(-np.absolute(x / (sigma + 10e-9)))
-            arm = rd_argmax(mu + (T - t) * v)
-            self.update_lists(t, arm, Sa, Na, reward, arm_sequence)
-            mu[arm] = (mu[arm]/sigma[arm]**2 + reward[t+1]/eta**2)/(1/(sigma[arm]**2) + eta**(-2))
-            sigma[arm] = (1 / (sigma[arm] ** 2) + eta ** (-2)) ** (-1)
+            if t < 2*self.nb_arms+1:
+                arm = t % self.nb_arms
+                self.update_lists(t, arm, Sa, Na, reward, arm_sequence)
+                mu[arm] = Sa[arm] / Na[arm]
+                sigma[arm] = 1/Na[arm]*(sum([r ** 2 for r in reward[np.where(arm_sequence == arm)]]) - Sa[arm] ** 2 / Na[arm])
+            else:
+                delta = np.array(
+                    [mu[i] - np.max(list(mu)[:i] + list(mu)[i + 1:]) for i in range(self.nb_arms)])
+                v = sigma * self.kgf(-np.absolute(delta / (sigma + 10e-9)))
+                arm = rd_argmax(mu + (T - t) * v)
+                self.update_lists(t, arm, Sa, Na, reward, arm_sequence)
+                eta = self.MAB[arm].eta
+                mu[arm] = (eta ** 2 * mu[arm] + reward[t] * sigma[arm] ** 2) / (eta ** 2 + sigma[arm] ** 2)
+                sigma[arm] = (eta * sigma[arm]) ** 2 / (eta ** 2 + sigma[arm] ** 2)
         return np.array(reward), np.array(arm_sequence)
 
-    def multi_simul_KG(self, M, arm_sequence, arm, reward, Na, Sa, std, delta, T, t):
-        '''TODO: a finir'''
-        reward_temp = list(reward[np.where(arm_sequence == arm)])
-        Na_temp, Sa_temp, v_temp = Na[arm], Sa[arm], 0
+    def multi_simul_KG(self, M, arm, sigma, mu, delta):
+        eta = self.MAB[arm].eta
+        v = 0
+        mu_, sigma_, delta_ = mu[arm], sigma[arm], delta[arm]
         for k in range(M):
-            r_temp = self.MAB[arm].sample()
-            reward_temp.append(r_temp)
-            Na_temp += 1
-            Sa_temp += r_temp
-            std[arm] = np.std(reward_temp)
-            delta[arm] = Sa_temp / Na_temp - np.max([(Sa / Na)[i] for i in range(self.nb_arms) if i != arm])
-            v_temp += Sa_temp / Na_temp + (T - t) * (std[arm] * self.kgf(-np.absolute(delta[arm] / (std[arm] + 10e-9))))
-        return std[arm], delta[arm], v_temp / M
+            delta_ = mu_ - np.max([mu[i] for i in range(self.nb_arms) if i != arm])
+            v += sigma_ * self.kgf(-np.absolute(delta_ / (sigma_ + 10e-9)))
+            y = self.MAB[arm].sample()
+            mu_ = (eta ** 2 * mu_ + y * sigma_ ** 2) / (eta ** 2 + sigma_ ** 2)
+            sigma_ = (eta * sigma_) ** 2 / (eta ** 2 + sigma_ ** 2)
+        return v/M
 
-    def KG_star(self, T, lbda=1):
-        '''TODO: a finir'''
+
+    def KG_star(self, T, lbda=100):
         Sa, Na, reward, arm_sequence = self.init_lists(T)
+        mu = np.zeros(self.nb_arms)
+        sigma = np.ones(self.nb_arms)
         for t in range(T):
-            if t < 2*self.nb_arms:
+            if t < 2*self.nb_arms+1:
                 arm = t % self.nb_arms
+                self.update_lists(t, arm, Sa, Na, reward, arm_sequence)
+                mu[arm] = Sa[arm] / Na[arm]
+                sigma[arm] = 1/Na[arm]*(sum([r ** 2 for r in reward[np.where(arm_sequence == arm)]]) - Sa[arm] ** 2 / Na[arm])
             else:
-                std = np.sqrt(
-                    1 / Na * np.array([np.sum((reward[np.where(arm_sequence == arm)] - (Sa / Na)[arm]) ** 2)
-                                       for arm in range(self.nb_arms)]))
                 delta = np.array(
-                    [(Sa / Na)[i] - np.max(list(Sa / Na)[:i] + list(Sa / Na)[i + 1:]) for i in range(self.nb_arms)])
-                r = (delta / (std + 10e-9)) ** 2
-                m_lower = lbda / (4 * std ** 2 + 10e-9) * (-1 + r + np.sqrt(1 + 6 * r + r ** 2))
-                m_higher = lbda / (4 * std ** 2 + 10e-9) * (1 + r + np.sqrt(1 + 10 * r + r ** 2))
+                    [mu[i] - np.max(list(mu)[:i] + list(mu)[i + 1:]) for i in range(self.nb_arms)])
+                r = (delta / (sigma + 10e-9)) ** 2
+                m_lower = lbda / (4 * sigma ** 2 + 10e-9) * (-1 + r + np.sqrt(1 + 6 * r + r ** 2))
+                m_higher = lbda / (4 * sigma ** 2 + 10e-9) * (1 + r + np.sqrt(1 + 10 * r + r ** 2))
                 v = np.zeros(self.nb_arms)
                 for arm in range(self.nb_arms):
                     if T - t <= m_lower[arm]:
@@ -666,7 +771,10 @@ class GaussianMAP(GenericMAB):
                         M = 1
                     else:
                         M = np.ceil(0.5 * ((m_lower + m_higher)[arm])).astype(int)  # approximation
-                    std[arm], delta[arm], v[arm] = self.multi_simul_KG(M, arm_sequence, arm, reward, Na, Sa, std, delta, T, t)
-                arm = rd_argmax(v)
-            self.update_lists(t, arm, Sa, Na, reward, arm_sequence)
+                    v[arm] = self.multi_simul_KG(M, arm, sigma, mu, delta)
+                arm = rd_argmax(mu + (T-t)*v)
+                self.update_lists(t, arm, Sa, Na, reward, arm_sequence)
+                eta = self.MAB[arm].eta
+                mu[arm] = (eta ** 2 * mu[arm] + reward[t] * sigma[arm] ** 2) / (eta ** 2 + sigma[arm] ** 2)
+                sigma[arm] = (eta * sigma[arm]) ** 2 / (eta ** 2 + sigma[arm] ** 2)
         return np.array(reward), np.array(arm_sequence)
