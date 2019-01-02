@@ -25,7 +25,6 @@ def approxIntegral():
     def dp_star(x, a):
         return joint_cdf(x) / norm.cdf(x, mu[a], sigma[a])*norm.pdf(x, mu[a], sigma[a]) #
 
-
     Y, X = [[] for _ in range(nb_arms)], [[] for _ in range(nb_arms)]
 
     for a in tqdm(range(nb_arms), desc='Computing dp_star for all actions'):
@@ -44,7 +43,6 @@ def approxIntegral():
         plt.plot(X[a], Y[a], label='action '+str(a))
         plt.legend()
     plt.show()
-
 
 
 def comprehension():

@@ -302,7 +302,6 @@ class BetaBernoulliMAB(GenericMAB):
             return beta.pdf(x, b1[a], b2[a])*joint_cdf(x)/beta.cdf(x, b1[a], b2[a])
 
         def p_star(a):
-            # TODO: pourquoi 1e-2 (Yo)
             return integrate.quad(lambda x: dp_star(x, a), 0., 1., epsabs=1e-2)[0]  # return a tuple (value, UB error)
 
         def MAA(a, p):
@@ -435,9 +434,9 @@ class FiniteSets(GenericMAB):
         return P_ay
 
     def get_R_star(self, joint_P):
-        '''
+        """
         :return: Optimal expected reward for a given prior
-        '''
+        """
         R = 0
         for a in range(self.nb_arms):
             for y in range(self.N):
