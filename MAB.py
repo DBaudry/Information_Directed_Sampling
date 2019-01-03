@@ -213,8 +213,6 @@ class GenericMAB:
                 else:
                     Q[a, ap] = 1
                 IR[a, ap] = (Q[a, ap]*(da-dap)+dap)**2/(Q[a, ap]*(ga-gap)+gap)
-        print('Q:', Q)
-        print('IR: ', IR)
         amin = rd_argmax(-IR.reshape(self.nb_arms*self.nb_arms))
         a, ap = amin//self.nb_arms, amin % self.nb_arms
         b = np.random.binomial(1, Q[a, ap])
@@ -231,6 +229,9 @@ class BetaBernoulliMAB(GenericMAB):
     def __init__(self, p):
         super().__init__(method=['B']*len(p), param=p)
         self.Cp = sum([(self.mu_max-x)/self.kl(x, self.mu_max) for x in self.means if x != self.mu_max])
+        self.flag = False
+        self.optimal_arm = None
+        self.threshold = 0.999
 
     @staticmethod
     def kl(x, y):
@@ -412,10 +413,18 @@ class BetaBernoulliMAB(GenericMAB):
         X, f, F, G, B = self.init_approx(N_steps)
         beta_1 = np.ones(self.nb_arms)
         beta_2 = np.ones(self.nb_arms)
+        p_star = np.zeros(self.nb_arms)
         for t in range(T):
-            delta, g, p_star, maap = self.IR_approx(N_steps, beta_1, beta_2, X, f, F, G)
-            #arm = self.IDSAction(delta, g)
-            arm = rd_argmax(-delta**2/g)
+            if not self.flag:
+                if np.max(p_star) > self.threshold:
+                    self.flag = True
+                    self.optimal_arm = np.argmax(p_star)
+                    arm = self.optimal_arm
+                else:
+                    delta, g, p_star, maap = self.IR_approx(N_steps, beta_1, beta_2, X, f, F, G)
+                    arm = self.IDSAction(delta, g)
+            else:
+                arm = self.optimal_arm
             self.update_lists(t, arm, Sa, Na, reward, arm_sequence)
             prev_beta = np.array([copy.copy(beta_1[arm]), copy.copy(beta_2[arm])])
             beta_1[arm] += reward[t]

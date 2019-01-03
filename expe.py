@@ -189,3 +189,6 @@ def check_gaussian():
     plt.xlabel('Rounds')
     plt.legend()
     plt.show()
+
+
+beta_bernoulli_expe(100, 2, 1000, doplot=True)
