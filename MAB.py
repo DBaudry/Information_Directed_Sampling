@@ -214,8 +214,9 @@ class GenericMAB:
                     Q[a, ap] = 0
                 else:
                     Q[a, ap] = 1
-                print(Q)
                 IR[a, ap] = (Q[a, ap]*(da-dap)+dap)**2/(Q[a, ap]*(ga-gap)+gap)
+        print('Q:', Q)
+        print('IR: ', IR)
         amin = rd_argmax(-IR.reshape(self.nb_arms*self.nb_arms))
         a, ap = amin//self.nb_arms, amin % self.nb_arms
         b = np.random.binomial(1, Q[a, ap])
@@ -533,9 +534,9 @@ class FiniteSets(GenericMAB):
         :param PY: array of shape (K,N), Probability of outcome Y while pulling arm A
         :return: Expected reward for a given prior
         """
-        R = 0
+        R = np.zeros(self.nb_arms)
         for a in range(self.nb_arms):
-                R += PY[a, :] @ self.R
+                R[a] += PY[a, :] @ self.R
         return R
 
     def get_g(self, joint, pa, py):
@@ -550,6 +551,10 @@ class FiniteSets(GenericMAB):
         for a in range(self.nb_arms):
             for y in range(self.N):
                 for a_star in range(self.nb_arms):
+                    # print('a:', a, 'y:', y, 'a_star:', a_star)
+                    # print('joint[a, a_star, y]:', joint[a, a_star, y])
+                    # print('pa[a_star]', pa[a_star])
+                    # print('py[a, y]', py[a, y])
                     g[a] += joint[a, a_star, y] * np.log(joint[a, a_star, y]/(pa[a_star]*py[a, y]))
         return g
 
@@ -557,7 +562,12 @@ class FiniteSets(GenericMAB):
         pa = self.get_pa_star()
         py = self.get_py()
         joint = self.get_joint_ay()
+        # print('joint dans IR:', joint)
+        print('pa dans IR: ', pa)
+        print('py dans IR: ', py)
         R_star = self.get_R_star(joint)
+        print('R_star:', R_star)
+        print('self.get_R(py) :', self.get_R(py))
         delta = np.zeros(self.nb_arms) + R_star - self.get_R(py)
         g = self.get_g(joint, pa, py)
         return delta, g
@@ -577,6 +587,8 @@ class FiniteSets(GenericMAB):
         reward = np.zeros(T)
         for t in range(T):
             delta, g = self.IR()
+            print('delta:', delta, 'T: ', t)
+            print('g:', g)
             arm = self.IDSAction(delta, g)
             self.update_lists(t, arm, Sa, Na, Y, arm_sequence)
             reward[t] = self.R[int(Y[t])]
