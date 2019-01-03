@@ -195,23 +195,22 @@ class GenericMAB:
 
     def IDSAction(self, delta, g):
         Q = np.zeros((self.nb_arms, self.nb_arms))
-        IR = np.zeros((self.nb_arms, self.nb_arms))
-        for a in range(self.nb_arms):
-            for ap in range(self.nb_arms):
+        IR = np.ones((self.nb_arms, self.nb_arms)) * np.inf
+        for a in range(self.nb_arms-1):
+            for ap in range(a+1, self.nb_arms):
                 da, dap = delta[a], delta[ap]
                 ga, gap = g[a], g[ap]
                 q1 = -1
                 q2 = -1.
-                if da != dap:
+                if da != dap and ga != gap:
                     q1 = -dap/(da-dap)
-                    if ga != gap:
-                        q2 = -q1-2*gap/(ga-gap)
-                if 0 <= q1 <= 1:
-                    Q[a, ap] = q1
-                elif 0 <= q2 <= 1:
+                    q2 = -q1-2*gap/(ga-gap)
+                if 0 <= q2 <= 1:
                     Q[a, ap] = q2
                 elif da**2/ga > dap**2/gap:
                     Q[a, ap] = 0
+                elif da**2/ga == dap**2:
+                    Q[a, ap] = np.random.choice([0, 1])
                 else:
                     Q[a, ap] = 1
                 IR[a, ap] = (Q[a, ap]*(da-dap)+dap)**2/(Q[a, ap]*(ga-gap)+gap)
