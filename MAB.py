@@ -213,8 +213,6 @@ class GenericMAB:
                 else:
                     Q[a, ap] = 1
                 IR[a, ap] = (Q[a, ap]*(da-dap)+dap)**2/(Q[a, ap]*(ga-gap)+gap)
-        print('Q:', Q)
-        print('IR: ', IR)
         amin = rd_argmax(-IR.reshape(self.nb_arms*self.nb_arms))
         a, ap = amin//self.nb_arms, amin % self.nb_arms
         b = np.random.binomial(1, Q[a, ap])
@@ -414,8 +412,8 @@ class BetaBernoulliMAB(GenericMAB):
         beta_2 = np.ones(self.nb_arms)
         for t in range(T):
             delta, g, p_star, maap = self.IR_approx(N_steps, beta_1, beta_2, X, f, F, G)
-            #arm = self.IDSAction(delta, g)
-            arm = rd_argmax(-delta**2/g)
+            arm = self.IDSAction(delta, g)
+            #arm = rd_argmax(-delta**2/g)
             self.update_lists(t, arm, Sa, Na, reward, arm_sequence)
             prev_beta = np.array([copy.copy(beta_1[arm]), copy.copy(beta_2[arm])])
             beta_1[arm] += reward[t]
