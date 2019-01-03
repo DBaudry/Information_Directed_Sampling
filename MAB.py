@@ -8,6 +8,7 @@ from scipy.stats import beta, norm
 import scipy.integrate as integrate
 import copy
 
+
 class GenericMAB:
     def __init__(self, method, param):
         self.MAB = self.generate_arms(method, param)
@@ -475,6 +476,9 @@ class FiniteSets(GenericMAB):
         self.L = q_theta.shape[0]
         self.N = q_theta.shape[2]
         self.Ta = self.get_theta_a()
+        self.flag = False
+        self.optimal_arm = None
+        self.threshold = 0.999
 
     def get_theta_a(self):
         """
@@ -495,6 +499,9 @@ class FiniteSets(GenericMAB):
         for a_star in range(self.nb_arms):
             for x in self.Ta[a_star]:
                 pa[a_star] += self.prior[x]
+            if pa[a_star] > self.threshold:
+                self.flag = True
+                self.optimal_arm = a_star
         return pa
 
     def get_py(self):
@@ -540,7 +547,6 @@ class FiniteSets(GenericMAB):
 
     def get_g(self, joint, pa, py):
         """
-
         :param joint: Joint distribution P_a(y,a_star)
         :param pa: Distribution of the optimal action
         :param py: Probability of outcome Y while pulling arm A
@@ -548,13 +554,14 @@ class FiniteSets(GenericMAB):
         """
         g = np.zeros(self.nb_arms)
         for a in range(self.nb_arms):
-            for y in range(self.N):
-                for a_star in range(self.nb_arms):
+            for a_star in range(self.nb_arms):
+                if pa[a_star] > 0.00001:
+                    for y in range(self.N):
+                        g[a] += joint[a, a_star, y] * np.log(joint[a, a_star, y] / (pa[a_star] * py[a, y]))
                     # print('a:', a, 'y:', y, 'a_star:', a_star)
                     # print('joint[a, a_star, y]:', joint[a, a_star, y])
                     # print('pa[a_star]', pa[a_star])
                     # print('py[a, y]', py[a, y])
-                    g[a] += joint[a, a_star, y] * np.log(joint[a, a_star, y]/(pa[a_star]*py[a, y]))
         return g
 
     def IR(self):
@@ -583,10 +590,13 @@ class FiniteSets(GenericMAB):
         Sa, Na, Y, arm_sequence = self.init_lists(T)
         reward = np.zeros(T)
         for t in range(T):
-            delta, g = self.IR()
-            print('delta:', delta, 'T: ', t)
-            print('g:', g)
-            arm = self.IDSAction(delta, g)
+            if not self.flag:
+                delta, g = self.IR()
+                arm = self.IDSAction(delta, g)
+                print('delta:', delta, 'T: ', t)
+                print('g:', g)
+            else:
+                arm = self.optimal_arm
             self.update_lists(t, arm, Sa, Na, Y, arm_sequence)
             reward[t] = self.R[int(Y[t])]
             self.update_prior(arm, int(Y[t]))
