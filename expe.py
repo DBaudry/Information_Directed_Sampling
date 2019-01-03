@@ -7,6 +7,7 @@ import matplotlib.pyplot as plt
 from scipy.stats import norm
 from tqdm import tqdm
 
+
 def approxIntegral():
     mu = np.random.uniform(-100, 100, 9)
     sigma = np.random.uniform(0, 100, 9)
@@ -19,7 +20,7 @@ def approxIntegral():
         return result
 
     def dp_star(x, a):
-        return joint_cdf(x) / norm.cdf(x, mu[a], sigma[a])*norm.pdf(x, mu[a], sigma[a]) #
+        return joint_cdf(x) / norm.cdf(x, mu[a], sigma[a])*norm.pdf(x, mu[a], sigma[a])
 
     Y, X = [[] for _ in range(nb_arms)], [[] for _ in range(nb_arms)]
     for a in tqdm(range(nb_arms), desc='Computing dp_star for all actions'):
@@ -52,15 +53,17 @@ def comprehension():
     plt.legend()
     plt.show()
     return 0
- #       plt.subplot(121 + i)
- #       plt.plot(my_MAB.MC_regret(method='UCB1', N=N1, T=1000, rho=0.2), label='UCB1')
- #       plt.plot(my_MAB.MC_regret(method='Random', N=N1, T=1000, rho=0.), label='Random')
- #       plt.plot(my_MAB.MC_regret(method='TS', N=N1, T=1000), label='TS')
- #       plt.plot(my_MAB.Cp * np.log(np.arange(1, 1001)))
- #       plt.ylabel('Cumulative Regret')
- #       plt.xlabel('Rounds')
- #       plt.legend()
- #   plt.show()
+
+# plt.subplot(121 + i)
+# plt.plot(my_MAB.MC_regret(method='UCB1', N=N1, T=1000, rho=0.2), label='UCB1')
+# plt.plot(my_MAB.MC_regret(method='Random', N=N1, T=1000, rho=0.), label='Random')
+# plt.plot(my_MAB.MC_regret(method='TS', N=N1, T=1000), label='TS')
+# plt.plot(my_MAB.Cp * np.log(np.arange(1, 1001)))
+# plt.ylabel('Cumulative Regret')
+# plt.xlabel('Rounds')
+# plt.legend()
+# plt.show()
+
 
 default_param = {
     'UCB1': 0.2,
@@ -70,7 +73,8 @@ default_param = {
 }
 
 
-def beta_bernoulli_expe(n_expe, n_arms, T, methods=['UCB1', 'MOSS', 'TS', 'KG', 'IDS_approx'], param=default_param, doplot=False):
+def beta_bernoulli_expe(n_expe, n_arms, T, methods=['UCB1', 'MOSS', 'TS', 'KG', 'IDS_approx'], param=default_param,
+                        doplot=False):
     all_regrets = np.zeros((len(methods), n_expe, T))
     res = {}
     for j in tqdm(range(n_expe)):
@@ -165,6 +169,7 @@ def build_finite_deterministic():
     p = np.array([0.35, 0.65])
     return p, q, R
 
+
 def check_gaussian():
     mu = np.random.normal(0, 1, 6)
     sigma = [1]*len(mu)
@@ -178,9 +183,12 @@ def check_gaussian():
     plt.plot(my_MAB.MC_regret(method='UCB1', N=N1, T=1000, param=0.2), label='UCB1')
     plt.plot(my_MAB.MC_regret(method='TS', N=N1, T=1000), label='TS')
     plt.plot(my_MAB.MC_regret(method='KG', N=N1, T=1000), label='KG')
-    #plt.plot(my_MAB.MC_regret(method='KG*', N=N1, T=1000), label='KG*')
-    #plt.plot(my_MAB.MC_regret(method='IDS', N=N1, T=1000), label='IDS')
+    # plt.plot(my_MAB.MC_regret(method='KG*', N=N1, T=1000), label='KG*')
+    # plt.plot(my_MAB.MC_regret(method='IDS', N=N1, T=1000), label='IDS')
     plt.ylabel('Cumulative Regret')
     plt.xlabel('Rounds')
     plt.legend()
     plt.show()
+
+
+beta_bernoulli_expe(100, 2, 1000, doplot=True)
