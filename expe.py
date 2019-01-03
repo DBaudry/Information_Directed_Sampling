@@ -115,15 +115,17 @@ def sanity_check_expe():
 
 
 def check_finite(prior, q, R, theta, N, T):
-    method = ['F']*q.shape[1]
-    param = [[np.arange(q.shape[2]), q[theta, i, :]] for i in range(q.shape[1])]
+    nb_arms = q.shape[1]
+    nb_rewards = q.shape[2]
+    method = ['F'] * nb_arms
+    param = [[np.arange(nb_rewards), q[theta, i, :]] for i in range(nb_arms)]
     my_MAB = mab.FiniteSets(method, param, q, prior, R)
-    print(prior)
-    print(R)
-    print(my_MAB.Ta)
+    print('prior: ', prior)
+    print('Reward: ', R)
+    print('Theta_a: ', my_MAB.Ta)
     param2 = [[R, q[theta, i, :]] for i in range(q.shape[1])]
     check_MAB = mab.GenericMAB(method, param2)
-    regret_IDS = my_MAB.MC_regret(method='IDS', N=N, T=T, param=0.2)
+    regret_IDS = my_MAB.MC_regret(method='IDS', N=N, T=T)
     plt.plot(regret_IDS, label='IDS')
     plt.plot(check_MAB.MC_regret(method='UCB1', N=N, T=T, param=0.2), label='UCB1')
     plt.plot(check_MAB.MC_regret(method='TS', N=N, T=T), label='TS')
