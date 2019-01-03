@@ -72,7 +72,6 @@ class ArmGaussian(AbstractArm):
         return self.local_random.normal(self.mu, self.eta, 1)
 
 
-
 class ArmExp(AbstractArm):
     # https://en.wikipedia.org/wiki/Truncated_distribution
     # https://en.wikipedia.org/wiki/Exponential_distribution
@@ -94,12 +93,14 @@ class ArmExp(AbstractArm):
                                      random_state=random_state)
 
     def cdf(self, x):
-        cdf = lambda y: 1. - np.exp(-self.L*y)
-        truncated_cdf = (cdf(x) - cdf(0)) / (cdf(self.B) - cdf(0))
+        def CDF(y):
+            return 1. - np.exp(-self.L*y)
+        # cdf = lambda y: 1. - np.exp(-self.L*y)
+        truncated_cdf = (CDF(x) - CDF(0)) / (CDF(self.B) - CDF(0))
         return truncated_cdf
 
     def inv_cdf(self, q):
-        assert 0<= q <= 1.
+        assert 0 <= q <= 1.
         v = - np.log(1. - (1. - np.exp(- self.L * self.B)) * q) / self.L
         return v
 
@@ -110,13 +111,14 @@ class ArmExp(AbstractArm):
         x = self.inv_cdf(q=q)
         return x
 
+
 class ArmFinite(AbstractArm):
     def __init__(self, X, P, random_state=0):
         """
         Arm with finite support
         Args:
-            X: support of the distribution
-            P: associated probabilities
+            X: support of the distribution (np.array)
+            P: associated probabilities (np.array)
             random_state (int): seed to make experiments reproducible
         """
         self.X = X
@@ -127,6 +129,10 @@ class ArmFinite(AbstractArm):
                                         random_state=random_state)
 
     def sample(self):
+        """
+        Sampling strategy for an arm with a finite support and the associated probability distribution
+        :return: A sample from the arm
+        """
         i = self.local_random.choice(len(self.P), size=1, p=self.P)
         reward = self.X[i]
         return reward
