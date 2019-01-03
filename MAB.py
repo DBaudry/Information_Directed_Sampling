@@ -525,28 +525,46 @@ class FiniteSets(GenericMAB):
         R = 0
         for a in range(self.nb_arms):
             for y in range(self.N):
-                R += joint_P[a, a, y]*self.R[y]
+                R += joint_P[a, a, y] * self.R[y]
         return R
+
+    def get_R(self, PY):
+        """
+        :param PY: array of shape (K,N), Probability of outcome Y while pulling arm A
+        :return: Expected reward for a given prior
+        """
+        R = 0
+        for a in range(self.nb_arms):
+                R += PY[a, :] @ self.R
+        return R
+
+    def get_g(self, joint, pa, py):
+        """
+
+        :param joint: Joint distribution P_a(y,a_star)
+        :param pa: Distribution of the optimal action
+        :param py: Probability of outcome Y while pulling arm A
+        :return: Information Gain
+        """
+        g = np.zeros(self.nb_arms)
+        for a in range(self.nb_arms):
+            for y in range(self.N):
+                for a_star in range(self.nb_arms):
+                    g[a] += joint[a, a_star, y] * np.log(joint[a, a_star, y]/(pa[a_star]*py[a, y]))
+        return g
 
     def IR(self):
         pa = self.get_pa_star()
         py = self.get_py()
         joint = self.get_joint_ay()
         R_star = self.get_R_star(joint)
-        g = np.zeros(self.nb_arms)
-        delta = np.zeros(self.nb_arms)+R_star
-        for a in range(self.nb_arms):
-            for y in range(self.N):
-                for a_star in range(self.nb_arms):
-                    if joint[a, a_star, y]>0:
-                        g[a] += joint[a, a_star, y]*np.log(joint[a, a_star, y]/pa[a_star]/py[a, y])
-                for x in range(self.L):
-                    delta[a] -= self.prior[x]*self.q_theta[x, a, y]*self.R[y]
+        delta = np.zeros(self.nb_arms) + R_star - self.get_R(py)
+        g = self.get_g(joint, pa, py)
         return delta, g
 
     def update_prior(self, a, y):
-        for x in range(self.L):
-            self.prior[x] *= self.q_theta[x, a, y]
+        for theta in range(self.L):
+            self.prior[theta] *= self.q_theta[theta, a, y]
         self.prior = self.prior/self.prior.sum()
 
     def IDS(self, T):
