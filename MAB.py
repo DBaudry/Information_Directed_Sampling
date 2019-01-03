@@ -202,18 +202,19 @@ class GenericMAB:
                 ga, gap = g[a], g[ap]
                 q1 = -1
                 q2 = -1.
-                if ga != gap:
+                if da != dap:
                     q1 = -dap/(da-dap)
-                if ga != gap:
-                    q2 = q1-2*gap/(ga-gap)
+                    if ga != gap:
+                        q2 = -q1-2*gap/(ga-gap)
                 if 0 <= q1 <= 1:
                     Q[a, ap] = q1
                 elif 0 <= q2 <= 1:
                     Q[a, ap] = q2
                 elif da**2/ga > dap**2/gap:
-                    Q[a, ap] = 1
-                else:
                     Q[a, ap] = 0
+                else:
+                    Q[a, ap] = 1
+                print(Q)
                 IR[a, ap] = (Q[a, ap]*(da-dap)+dap)**2/(Q[a, ap]*(ga-gap)+gap)
         amin = rd_argmax(-IR.reshape(self.nb_arms*self.nb_arms))
         a, ap = amin//self.nb_arms, amin % self.nb_arms
@@ -354,15 +355,13 @@ class BetaBernoulliMAB(GenericMAB):
         assert type(b1) == np.ndarray, "b1 type should be an np.array"
         assert type(b2) == np.ndarray, "b2 type should be an np.array"
         maap = np.zeros((self.nb_arms, self.nb_arms))
-        dp_star = np.apply_along_axis(lambda x: x*F_bar, 1, f/F)/(N+1)
-        dp_star[:, 0] = np.zeros(self.nb_arms)
+        dp_star = np.apply_along_axis(lambda x: x*(F_bar+1e-12), 1, f/(F+1e-9))/N
         p_star = dp_star.sum(axis=1)
         ma = (X*dp_star).sum(axis=1)/p_star
         for a in range(self.nb_arms):
             for ap in range(self.nb_arms):
                 if a != ap:
                     joint_density = dp_star[a]*G[ap]/F[ap]
-                    joint_density[0] = 0.
                     maap[ap, a] = joint_density.sum()/p_star[a]
                 else:
                     maap[ap, a] = ma[a]
@@ -380,9 +379,9 @@ class BetaBernoulliMAB(GenericMAB):
         :return: Initialisation of the arrays for the approximation of the integrals in IDS
         The initialization is made for uniform prior (equivalent to beta(1,1))
         """
-        X = np.linspace(0., 1., N+1)
-        f = np.ones((self.nb_arms, N+1))
-        F = np.repeat(X, self.nb_arms, axis=0).reshape((N+1, self.nb_arms)).T
+        X = np.linspace(1/N, 1., N)
+        f = np.ones((self.nb_arms, N))
+        F = np.repeat(X, self.nb_arms, axis=0).reshape((N, self.nb_arms)).T
         G = F**2/2
         F_bar = X**self.nb_arms
         B = np.ones(self.nb_arms)
@@ -396,10 +395,10 @@ class BetaBernoulliMAB(GenericMAB):
         """
         adjust = beta[0]*y+beta[1]*(1-y)
         sign_F_update = 1. if y == 0 else -1.
-        F_bar=F_bar/F[arm]
+        F[arm] += 1e-9
+        F_bar = (F_bar+1e-15)/F[arm]
         f[arm] = (X*y+(1-X)*(1-y))*beta.sum()/adjust*f[arm]
         G[arm] = beta[0]/beta.sum()*(F[arm]-X**beta[0]*(1.-X)**beta[1]/beta[0]/B[arm])
-        F_bar[0] = 0
         F[arm] = F[arm] + sign_F_update*X**beta[0]*(1.-X)**beta[1]/adjust/B[arm]
         F_bar = F_bar*F[arm]
         B[arm] = B[arm]*adjust/beta.sum()
@@ -417,7 +416,8 @@ class BetaBernoulliMAB(GenericMAB):
         beta_2 = np.ones(self.nb_arms)
         for t in range(T):
             delta, g = self.IR_approx(N_steps, beta_1, beta_2, X, f, F, F_bar, G)
-            arm = self.IDSAction(delta, g)
+            #arm = self.IDSAction(delta, g)
+            arm = rd_argmax(-delta**2/g)
             self.update_lists(t, arm, Sa, Na, reward, arm_sequence)
             prev_beta = np.array([copy.copy(beta_1[arm]), copy.copy(beta_2[arm])])
             beta_1[arm] += reward[t]
