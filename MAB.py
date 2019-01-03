@@ -566,8 +566,6 @@ class FiniteSets(GenericMAB):
         print('pa dans IR: ', pa)
         print('py dans IR: ', py)
         R_star = self.get_R_star(joint)
-        print('R_star:', R_star)
-        print('self.get_R(py) :', self.get_R(py))
         delta = np.zeros(self.nb_arms) + R_star - self.get_R(py)
         g = self.get_g(joint, pa, py)
         return delta, g
