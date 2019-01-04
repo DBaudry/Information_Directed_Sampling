@@ -2,67 +2,13 @@
 
 # Importation
 import numpy as np
-import MAB as mab
+from MAB import GenericMAB
+from BernoulliMAB import BetaBernoulliMAB
+from GaussianMAB import GaussianMAB
+from FiniteSetsMAB import FiniteSets
 import matplotlib.pyplot as plt
 from scipy.stats import norm
 from tqdm import tqdm
-
-
-def approxIntegral():
-    mu = np.random.uniform(-100, 100, 9)
-    sigma = np.random.uniform(0, 100, 9)
-    nb_arms = 9
-
-    def joint_cdf(x):
-        result = 1.
-        for a in range(nb_arms):
-            result = result * norm.cdf(x, mu[a], sigma[a])
-        return result
-
-    def dp_star(x, a):
-        return joint_cdf(x) / norm.cdf(x, mu[a], sigma[a])*norm.pdf(x, mu[a], sigma[a])
-
-    Y, X = [[] for _ in range(nb_arms)], [[] for _ in range(nb_arms)]
-    for a in tqdm(range(nb_arms), desc='Computing dp_star for all actions'):
-        x_sup = np.max([np.max(mu)+3*np.max(sigma), mu[a]+3*sigma[a]])
-        x_inf = np.min([np.min(mu)-3*np.max(sigma), mu[a]-3*sigma[a]])
-        X0 = np.linspace(x_sup, x_inf, 100)
-        Y0 = np.array([dp_star(x, a) for x in X0])
-        I_a = np.arange(100) if np.max(Y0) < 10e-10 else np.where(Y0 >= 10e-10)
-        X1 = np.linspace(X0[I_a][0], X0[I_a][-1], 1000)
-        Y[a] = np.array([dp_star(x, a) for x in X1])
-        X[a] = X1
-
-    plt.figure(1)
-    for a in range(nb_arms):
-        plt.subplot(3, 3, a+1)
-        plt.plot(X[a], Y[a], label='action '+str(a))
-        plt.legend()
-    plt.show()
-
-
-def comprehension():
-    p1 = [0.05, 0.4, 0.7, 0.90]
-    N1 = 50
-    my_MAB = mab.BetaBernoulliMAB(p1)
-    plt.plot(my_MAB.MC_regret(method='UCB1', N=N1, T=1000, param=0.2), label='UCB1')
-    plt.plot(my_MAB.MC_regret(method='RandomPolicy', N=N1, T=1000), label='Random')
-    plt.plot(my_MAB.MC_regret(method='TS', N=N1, T=1000), label='TS')
-    plt.ylabel('Cumulative Regret')
-    plt.xlabel('Rounds')
-    plt.legend()
-    plt.show()
-    return 0
-
-# plt.subplot(121 + i)
-# plt.plot(my_MAB.MC_regret(method='UCB1', N=N1, T=1000, rho=0.2), label='UCB1')
-# plt.plot(my_MAB.MC_regret(method='Random', N=N1, T=1000, rho=0.), label='Random')
-# plt.plot(my_MAB.MC_regret(method='TS', N=N1, T=1000), label='TS')
-# plt.plot(my_MAB.Cp * np.log(np.arange(1, 1001)))
-# plt.ylabel('Cumulative Regret')
-# plt.xlabel('Rounds')
-# plt.legend()
-# plt.show()
 
 
 default_param = {
@@ -79,7 +25,7 @@ def beta_bernoulli_expe(n_expe, n_arms, T, methods=['UCB1', 'MOSS', 'TS', 'KG', 
     res = {}
     for j in tqdm(range(n_expe)):
         p = np.random.uniform(size=n_arms)
-        my_mab = mab.BetaBernoulliMAB(p)
+        my_mab = BetaBernoulliMAB(p)
         res['UCB1'] = my_mab.regret(my_mab.UCB1(T, rho=param['UCB1'])[0], T)
         res['TS'] = my_mab.regret(my_mab.TS(T)[0], T)
         res['MOSS'] = my_mab.regret(my_mab.MOSS(T, rho=param['MOSS'])[0], T)
@@ -96,47 +42,6 @@ def beta_bernoulli_expe(n_expe, n_arms, T, methods=['UCB1', 'MOSS', 'TS', 'KG', 
         plt.legend()
         plt.show()
     return MC_regret
-
-
-def sanity_check_expe():
-    p1 = [0.05, 0.4, 0.7, 0.90]
-    p2 = [0.25, 0.27, 0.32, 0.40, 0.42]
-    N1 = 50
-    plt.figure(1)
-    for i, p in enumerate([p1, p2]):
-        my_MAB = mab.BetaBernoulliMAB(p)
-        print(my_MAB.MAB)
-        print(my_MAB.Cp)
-        plt.subplot(121 + i)
-        plt.plot(my_MAB.MC_regret(method='UCB1', N=N1, T=1000, param=0.2), label='UCB1')
-        plt.plot(my_MAB.MC_regret(method='Random', N=N1, T=1000, param=0.), label='Random')
-        plt.plot(my_MAB.MC_regret(method='TS', N=N1, T=1000), label='TS')
-        plt.plot(my_MAB.Cp * np.log(np.arange(1, 1001)))
-        plt.ylabel('Cumulative Regret')
-        plt.xlabel('Rounds')
-        plt.legend()
-    plt.show()
-
-
-def check_finite(prior, q, R, theta, N, T):
-    nb_arms = q.shape[1]
-    nb_rewards = q.shape[2]
-    method = ['F'] * nb_arms
-    param = [[np.arange(nb_rewards), q[theta, i, :]] for i in range(nb_arms)]
-    my_MAB = mab.FiniteSets(method, param, q, prior, R)
-    print('prior: ', prior)
-    print('Reward: ', R)
-    print('Theta_a: ', my_MAB.Ta)
-    param2 = [[R, q[theta, i, :]] for i in range(q.shape[1])]
-    check_MAB = mab.GenericMAB(method, param2)
-    regret_IDS = my_MAB.MC_regret(method='IDS', N=N, T=T)
-    plt.plot(regret_IDS, label='IDS')
-    plt.plot(check_MAB.MC_regret(method='UCB1', N=N, T=T, param=0.2), label='UCB1')
-    plt.plot(check_MAB.MC_regret(method='TS', N=N, T=T), label='TS')
-    plt.ylabel('Cumulative Regret')
-    plt.xlabel('Rounds')
-    plt.legend()
-    plt.show()
 
 
 def build_finite(L, K, N):
@@ -170,6 +75,47 @@ def build_finite_deterministic():
     return p, q, R
 
 
+def check_finite(prior, q, R, theta, N, T):
+    nb_arms = q.shape[1]
+    nb_rewards = q.shape[2]
+    method = ['F'] * nb_arms
+    param = [[np.arange(nb_rewards), q[theta, i, :]] for i in range(nb_arms)]
+    my_MAB = FiniteSets(method, param, q, prior, R)
+    print('prior: ', prior)
+    print('Reward: ', R)
+    print('Theta_a: ', my_MAB.Ta)
+    param2 = [[R, q[theta, i, :]] for i in range(q.shape[1])]
+    check_MAB = GenericMAB(method, param2)
+    regret_IDS = my_MAB.MC_regret(method='IDS', N=N, T=T)
+    plt.plot(regret_IDS, label='IDS')
+    plt.plot(check_MAB.MC_regret(method='UCB1', N=N, T=T, param=0.2), label='UCB1')
+    plt.plot(check_MAB.MC_regret(method='TS', N=N, T=T), label='TS')
+    plt.ylabel('Cumulative Regret')
+    plt.xlabel('Rounds')
+    plt.legend()
+    plt.show()
+
+
+def sanity_check_expe():
+    p1 = [0.05, 0.4, 0.7, 0.90]
+    p2 = [0.25, 0.27, 0.32, 0.40, 0.42]
+    N1 = 50
+    plt.figure(1)
+    for i, p in enumerate([p1, p2]):
+        my_MAB = BetaBernoulliMAB(p)
+        print(my_MAB.MAB)
+        print(my_MAB.Cp)
+        plt.subplot(121 + i)
+        plt.plot(my_MAB.MC_regret(method='UCB1', N=N1, T=1000, param=0.2), label='UCB1')
+        plt.plot(my_MAB.MC_regret(method='Random', N=N1, T=1000, param=0.), label='Random')
+        plt.plot(my_MAB.MC_regret(method='TS', N=N1, T=1000), label='TS')
+        plt.plot(my_MAB.Cp * np.log(np.arange(1, 1001)))
+        plt.ylabel('Cumulative Regret')
+        plt.xlabel('Rounds')
+        plt.legend()
+    plt.show()
+
+
 def check_gaussian():
     mu = np.random.normal(0, 1, 6)
     sigma = [1]*len(mu)
@@ -191,4 +137,34 @@ def check_gaussian():
     plt.show()
 
 
-beta_bernoulli_expe(100, 2, 1000, doplot=True)
+def approxIntegral():
+    mu = np.random.uniform(-100, 100, 9)
+    sigma = np.random.uniform(0, 100, 9)
+    nb_arms = 9
+
+    def joint_cdf(x):
+        result = 1.
+        for a in range(nb_arms):
+            result = result * norm.cdf(x, mu[a], sigma[a])
+        return result
+
+    def dp_star(x, a):
+        return joint_cdf(x) / norm.cdf(x, mu[a], sigma[a])*norm.pdf(x, mu[a], sigma[a])
+
+    Y, X = [[] for _ in range(nb_arms)], [[] for _ in range(nb_arms)]
+    for a in tqdm(range(nb_arms), desc='Computing dp_star for all actions'):
+        x_sup = np.max([np.max(mu)+3*np.max(sigma), mu[a]+3*sigma[a]])
+        x_inf = np.min([np.min(mu)-3*np.max(sigma), mu[a]-3*sigma[a]])
+        X0 = np.linspace(x_sup, x_inf, 100)
+        Y0 = np.array([dp_star(x, a) for x in X0])
+        I_a = np.arange(100) if np.max(Y0) < 10e-10 else np.where(Y0 >= 10e-10)
+        X1 = np.linspace(X0[I_a][0], X0[I_a][-1], 1000)
+        Y[a] = np.array([dp_star(x, a) for x in X1])
+        X[a] = X1
+
+    plt.figure(1)
+    for a in range(nb_arms):
+        plt.subplot(3, 3, a+1)
+        plt.plot(X[a], Y[a], label='action '+str(a))
+        plt.legend()
+    plt.show()
