@@ -80,7 +80,9 @@ class GenericMAB:
             elif method == 'BayesUCB':
                 MC_regret += self.regret(self.BayesUCB(T=T, p1=pBayes[0], p2=pBayes[1], c=0.)[0], T)
             elif method == 'GPUCB':
-                MC_regret += self.regret(self.GPUCB(T, c=pGPUCB)[0], T)
+                MC_regret += self.regret(self.GPUCB(T)[0], T)
+            elif method == 'Tuned_GPUCB':
+                MC_regret += self.regret(self.Tuned_GPUCB(T, c=pGPUCB)[0], T)
             elif method == 'IDS_approx':
                 MC_regret += self.regret(self.IDS_approx(T=T, N_steps=1000)[0], T)
             else:
@@ -227,4 +229,7 @@ class GenericMAB:
         raise NotImplementedError
 
     def GPUCB(self, T, c):
+        raise NotImplementedError
+
+    def Tuned_GPUCB(self, T, c):
         raise NotImplementedError
