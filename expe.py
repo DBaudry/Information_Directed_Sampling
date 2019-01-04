@@ -13,9 +13,11 @@ from tqdm import tqdm
 
 default_param = {
     'UCB1': 0.2,
+    'BayesUCB': (1, 1),
     'MOSS': 0.2,
     'ExploreCommit': 50,
-    'IDS_approx': 1000
+    'IDS_approx': 1000,
+    'GPUCB' : 1.5
 }
 
 
@@ -115,27 +117,40 @@ def sanity_check_expe():
         plt.legend()
     plt.show()
 
+##### Gaussian test ######
 
-def check_gaussian():
-    mu = np.random.normal(0, 1, 6)
-    sigma = [1]*len(mu)
-    p = []
-    for i in range(len(mu)):
-        p.append([mu[i], sigma[i]])
-    N1 = 1000
-    plt.figure(1)
-    my_MAB = mab.GaussianMAB(p)
-    print(my_MAB.MAB)
-    plt.plot(my_MAB.MC_regret(method='UCB1', N=N1, T=1000, param=0.2), label='UCB1')
-    plt.plot(my_MAB.MC_regret(method='TS', N=N1, T=1000), label='TS')
-    plt.plot(my_MAB.MC_regret(method='KG', N=N1, T=1000), label='KG')
-    # plt.plot(my_MAB.MC_regret(method='KG*', N=N1, T=1000), label='KG*')
-    # plt.plot(my_MAB.MC_regret(method='IDS', N=N1, T=1000), label='IDS')
-    plt.ylabel('Cumulative Regret')
-    plt.xlabel('Rounds')
-    plt.legend()
-    plt.show()
+def check_gaussian(n_expe, n_arms, T, methods=['TS', 'UCB1', 'BayesUCB', 'GPUCB'], param=default_param,
+                   doplot=False):
 
+    all_regrets = np.zeros((len(methods), n_expe, T))
+    res = {}
+    for j in tqdm(range(n_expe)):
+        mu = np.random.normal(0, 1, n_arms)
+        sigma = [1] * len(mu)
+        p = []
+        for i in range(len(mu)):
+            p.append([mu[i], sigma[i]])
+        my_mab = GaussianMAB(p)
+        #res['UCB1'] = my_mab.regret(my_mab.UCB1(T, rho=param['UCB1'])[0], T)
+        res['TS'] = my_mab.regret(my_mab.TS(T)[0], T)
+        res['UCB1'] = my_mab.regret(my_mab.UCB1(T, rho=param['UCB1'])[0], T)
+        res['BayesUCB'] = my_mab.regret(my_mab.BayesUCB(T, p1=param['BayesUCB'][0], p2=param['BayesUCB'][0])[0], T)
+        res['GPUCB'] = my_mab.regret(my_mab.GPUCB(T, c=param['GPUCB'])[0], T)
+        #res['MOSS'] = my_mab.regret(my_mab.MOSS(T, rho=param['MOSS'])[0], T)
+        #res['KG'] = my_mab.regret(my_mab.KG(T)[0], T)
+        #res['IDS_approx'] = my_mab.regret(my_mab.IDS_approx(T, N_steps=param['IDS_approx'])[0], T)
+        #res['IDS'] = my_mab.regret(my_mab.IDS(T)[0], T)
+        for i, m in enumerate(methods):
+            all_regrets[i, j] = res[m]
+    MC_regret = all_regrets.sum(axis=1)/n_expe
+    if doplot:
+        for i in range(len(methods)):
+            plt.plot(MC_regret[i], label=methods[i])
+        plt.ylabel('Cumulative Regret')
+        plt.xlabel('Rounds')
+        plt.legend()
+        plt.show()
+    return MC_regret
 
 def approxIntegral():
     mu = np.random.uniform(-100, 100, 9)
@@ -168,3 +183,4 @@ def approxIntegral():
         plt.plot(X[a], Y[a], label='action '+str(a))
         plt.legend()
     plt.show()
+

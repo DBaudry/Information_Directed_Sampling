@@ -65,7 +65,7 @@ class ArmGaussian(AbstractArm):
         self.mu = mu
         self.eta = eta
         super(ArmGaussian, self).__init__(mean=mu,
-                                          variance=eta,
+                                          variance=eta**2,
                                           random_state=random_state)
 
     def sample(self):

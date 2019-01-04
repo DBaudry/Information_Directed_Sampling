@@ -34,15 +34,15 @@ class BetaBernoulliMAB(GenericMAB):
             self.update_lists(t, arm, Sa, Na, reward, arm_sequence)
         return reward, arm_sequence
 
-    def BayesUCB(self, T, a, b, c=0):
+    def BayesUCB(self, T, p1, p2, c=0):
         """
-        BayesUCB implementation in the case of a Beta(a,b) prior on the theta parameters
+        BayesUCB implementation in the case of a Beta(p1, p2) prior on the theta parameters
         for a BinomialMAB.
         Implementation of On Bayesian Upper Confidence Bounds for Bandit Problems, Kaufman & al,
         from http://proceedings.mlr.press/v22/kaufmann12/kaufmann12.pdf
         :param T: number of rounds
-        :param a: First parameter of the Beta prior probability distribution
-        :param b: Second parameter of the Beta prior probability distribution
+        :param p1: First parameter of the Beta prior probability distribution
+        :param p2: Second parameter of the Beta prior probability distribution
         :param c: Parameter for the quantiles. Default value c=0
         :return: Reward obtained by the policy and sequence of the arms choosed
         """
@@ -51,9 +51,9 @@ class BetaBernoulliMAB(GenericMAB):
         for t in range(T):
             for k in range(self.nb_arms):
                 if Na[k] >= 1:
-                    quantiles[k] = beta.ppf(1-1/(t*np.log(T)**c), Sa[k] + a, b + Na[k] - Sa[k])
+                    quantiles[k] = beta.ppf(1-1/(t*np.log(T)**c), Sa[k] + p1, p2 + Na[k] - Sa[k])
                 else:
-                    quantiles[k] = beta.ppf(1-1/(t*np.log(T)**c), a, b)
+                    quantiles[k] = beta.ppf(1-1/(t*np.log(T)**c), p1, p2)
             arm = rd_argmax(quantiles)
             self.update_lists(t, arm, Sa, Na, reward, arm_sequence)
         return reward, arm_sequence

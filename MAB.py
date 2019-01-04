@@ -4,7 +4,7 @@ import arms
 from tqdm import tqdm
 from utils import rd_argmax
 import random
-from scipy.stats import beta, norm
+from scipy.stats import beta, norm, t
 import scipy.integrate as integrate
 import copy
 
@@ -36,7 +36,7 @@ class GenericMAB:
             elif m == 'Exp':
                 arms_list.append(arms.ArmExp(L=p[0], B=p[1], random_state=np.random.randint(1, 312414)))
             elif m == 'G':
-                arms_list.append(arms.ArmGaussian(mu=p[0], sigma=p[1], eta=p[2], random_state=np.random.randint(1, 312414)))
+                arms_list.append(arms.ArmGaussian(mu=p[0], eta=p[1], random_state=np.random.randint(1, 312414)))
             else:
                 raise NameError('This method is not implemented, available methods are defined in generate_arms method')
         return arms_list
@@ -50,7 +50,7 @@ class GenericMAB:
         """
         return self.mu_max * np.arange(1, T+1) - np.cumsum(reward)
 
-    def MC_regret(self, method, N, T, param=0.2):
+    def MC_regret(self, method, N, T, pBayes=(1, 1), pGPUCB=0.9, param=0.2):
         """
         Monte Carlo method for approximating the expectation of the regret.
         :param method: Method used (UCB, Thomson Sampling, etc..)
@@ -78,7 +78,9 @@ class GenericMAB:
             elif method == 'ExploreCommit':
                 MC_regret += self.regret(self.ExploreCommit(m=param, T=T)[0], T)
             elif method == 'BayesUCB':
-                MC_regret += self.regret(self.BayesUCB(T=T, a=1., b=1., c=0.)[0], T)
+                MC_regret += self.regret(self.BayesUCB(T=T, p1=pBayes[0], p2=pBayes[1], c=0.)[0], T)
+            elif method == 'GPUCB':
+                MC_regret += self.regret(self.GPUCB(T, c=pGPUCB)[0], T)
             elif method == 'IDS_approx':
                 MC_regret += self.regret(self.IDS_approx(T=T, N_steps=1000)[0], T)
             else:
@@ -221,5 +223,8 @@ class GenericMAB:
     def IDS(self, T):
         raise NotImplementedError
 
-    def BayesUCB(self, T, a, b, c=0.):
+    def BayesUCB(self, T, p1, p2, c=0.):
+        raise NotImplementedError
+
+    def GPUCB(self, T, c):
         raise NotImplementedError

@@ -3,68 +3,70 @@ from MAB import *
 
 class GaussianMAB(GenericMAB):
     """
-    TODO: BayesUCB to adapt for gaussian bandits
+
     """
     def __init__(self, p):
         super().__init__(method=['G']*len(p), param=p)
 
     def TS(self, T):
         """
-        Implementation of the Thomson Sampling algorithm
+        Implementation of the Thomson Sampling algorithm for Gaussian bandits
         :param T: number of rounds
-        :return: Reward obtained by the policy and sequence of the arms choosed
+        :return: Reward obtained by the policy and sequence of the arms chose
         """
-        # Sa, Na, reward, arm_sequence = self.init_lists(T)
-        # mu, S = np.zeros(self.nb_arms), np.zeros(self.nb_arms)
-        # n_bar = np.max(2, 3-np.ceil(2*alpha))
-        # for t in range(T):
-        #     if t < self.nb_arms * n_bar:
-        #         arm = t % self.nb_arms
-        #     else:
-        #         for k in range(self.nb_arms):
-        #             S[k] = sum([r**2 for r in reward[np.where(arm_sequence==k)]]) - Sa[k]**2/Na[k]
-        #             mu[k] = Sa[k]/Na[k] + np.sqrt(S[k]/(Na[k]*(Na[k]+2*alpha-1))) * np.random.standard_t(Na[k]+2*alpha-1,1)
-        #         arm = rd_argmax(mu)
-        #     self.update_lists(t, arm, Sa, Na, reward, arm_sequence)
         Sa, Na, reward, arm_sequence = self.init_lists(T)
-        mu, sigma = np.zeros(self.nb_arms), np.ones(self.nb_arms)
+        mu, S = np.zeros(self.nb_arms), np.zeros(self.nb_arms)
+        alpha = 0.5
+        n_bar = max(2, 3-np.ceil(2*alpha))
         for t in range(T):
-            if t < 2*self.nb_arms+1:
+            if t < self.nb_arms * n_bar:
                 arm = t % self.nb_arms
-                self.update_lists(t, arm, Sa, Na, reward, arm_sequence)
-                mu[arm] = Sa[arm] / Na[arm]
-                sigma[arm] = 1/Na[arm]*(sum([r ** 2 for r in reward[np.where(arm_sequence == arm)]]) - Sa[arm] ** 2 / Na[arm])
             else:
+                for arm in range(self.nb_arms):
+                    S[arm] = sum([r**2 for r in reward[np.where(arm_sequence==arm)]]) - Sa[arm]**2/Na[arm]
+                    mu[arm] = Sa[arm]/Na[arm] + np.sqrt(S[arm]/(Na[arm]*(Na[arm]+2*alpha-1))) * np.random.standard_t(Na[arm]+2*alpha-1,1)
                 arm = rd_argmax(mu)
-                eta = self.MAB[arm].eta
-                self.update_lists(t, arm, Sa, Na, reward, arm_sequence)
-                mu[arm] = (eta**2 * mu[arm] + reward[t] * sigma[arm]**2) / (eta**2 + sigma[arm]**2)
-                sigma[arm] = (eta*sigma[arm])**2 / (eta**2 + sigma[arm]**2)
+            self.update_lists(t, arm, Sa, Na, reward, arm_sequence)
         return reward, arm_sequence
 
 
-    def BayesUCB(self, T, a, b, c=0):
+    def BayesUCB(self, T, p1, p2, c=0):
         """
-        BayesUCB implementation in the case of a Beta(a,b) prior on the theta parameters
-        for a BinomialMAB.
+        BayesUCB implementation in the case of a N(p1,p2) prior on the theta parameters
+        for a GaussianMAB.
         Implementation of On Bayesian Upper Confidence Bounds for Bandit Problems, Kaufman & al,
         from http://proceedings.mlr.press/v22/kaufmann12/kaufmann12.pdf
         :param T: number of rounds
-        :param a: First parameter of the Beta prior probability distribution
-        :param b: Second parameter of the Beta prior probability distribution
+        :param p1: First parameter of the normal prior probability distribution
+        :param p2: Second parameter of the normal prior probability distribution
         :param c: Parameter for the quantiles. Default value c=0
-        :return: Reward obtained by the policy and sequence of the arms choosed
+        :return: Reward obtained by the policy and sequence of the arms chose
         """
         Sa, Na, reward, arm_sequence = self.init_lists(T)
         quantiles = np.zeros(self.nb_arms)
-        for t in range(T):
-            for k in range(self.nb_arms):
-                if Na[k] >= 1:
-                    quantiles[k] = beta.ppf(1-1/(t*np.log(T)**c), Sa[k] + a, b + Na[k] - Sa[k])
+        S, mu = np.zeros(self.nb_arms), np.zeros(self.nb_arms)
+        for n in range(T):
+            for arm in range(self.nb_arms):
+                if Na[arm] >= 2:
+                    S[arm] = (sum([r ** 2 for r in reward[np.where(arm_sequence == arm)]]) - Sa[arm] ** 2 / Na[arm]) / (Na[arm]-1)
+                    quantiles[arm] = Sa[arm]/Na[arm] + np.sqrt(S[arm]/Na[arm]) * t.ppf(1-1/(n+1), Na[arm]-1)
+                    arm = rd_argmax(quantiles)
                 else:
-                    quantiles[k] = beta.ppf(1-1/(t*np.log(T)**c), a, b)
-            arm = rd_argmax(quantiles)
+                    arm = n % self.nb_arms
+            self.update_lists(n, arm, Sa, Na, reward, arm_sequence)
+        return reward, arm_sequence
+
+    def GPUCB(self, T, c):
+        """
+        """
+        Sa, Na, reward, arm_sequence = self.init_lists(T)
+        mu, sigma = np.zeros(self.nb_arms), np.ones(self.nb_arms)
+        for t in range(T):
+            arm = rd_argmax(mu + c*np.log(t+1)*sigma)
             self.update_lists(t, arm, Sa, Na, reward, arm_sequence)
+            eta = self.MAB[arm].eta
+            mu[arm] = (eta ** 2 * mu[arm] + reward[t] * sigma[arm] ** 2) / (eta ** 2 + sigma[arm] ** 2)
+            sigma[arm] = (eta * sigma[arm]) ** 2 / (eta ** 2 + sigma[arm] ** 2)
         return reward, arm_sequence
 
     @staticmethod
