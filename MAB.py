@@ -248,7 +248,7 @@ class GenericMAB:
     def BayesUCB(self, T, p1, p2, c=0.):
         raise NotImplementedError
 
-    def GPUCB(self, T, c):
+    def GPUCB(self, T):
         raise NotImplementedError
 
     def Tuned_GPUCB(self, T, c):
