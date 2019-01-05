@@ -7,6 +7,9 @@ class GaussianMAB(GenericMAB):
     """
     def __init__(self, p):
         super().__init__(method=['G']*len(p), param=p)
+        self.flag = False
+        self.optimal_arm = None
+        self.threshold = 0.99
 
     @staticmethod
     def kl(x, y):
@@ -107,6 +110,51 @@ class GaussianMAB(GenericMAB):
             self.update_lists(t, arm, Sa, Na, reward, arm_sequence)
         return reward, arm_sequence
 
+    def kgf(self, x):
+        return norm.cdf(x) * x + norm.pdf(x)
+
+    def KG(self, T):
+        """
+        Implementation of Knowledge Gradient algorithm
+        :param T: number of rounds
+        :return: Reward obtained by the policy and sequence of the arms chosen
+        """
+        Sa, Na, reward, arm_sequence = self.init_lists(T)
+        mu = np.zeros(self.nb_arms)
+        sigma = np.ones(self.nb_arms)
+        eta = np.array([self.MAB[arm].eta for arm in range(self.nb_arms)])
+        for t in range(T):
+            delta_t = np.array(
+                [mu[arm] - np.max(list(mu)[:arm] + list(mu)[arm+1:]) for arm in range(self.nb_arms)])
+            sigma_next = np.sqrt(((sigma*eta)**2)/(sigma**2+eta**2))
+            s_t = np.sqrt(sigma**2-sigma_next**2)
+            v = s_t * self.kgf(-np.absolute(delta_t / (s_t + 10e-9)))
+            arm = rd_argmax(mu + (T - t) * v)
+            self.update_lists(t, arm, Sa, Na, reward, arm_sequence)
+            mu[arm] = (eta[arm] ** 2 * mu[arm] + reward[t] * sigma[arm] ** 2) / (eta[arm] ** 2 + sigma[arm] ** 2)
+            sigma[arm] = sigma_next[arm]
+        return np.array(reward), np.array(arm_sequence)
+
+    def KG_star(self, T):
+        Sa, Na, reward, arm_sequence = self.init_lists(T)
+        mu = np.zeros(self.nb_arms)
+        sigma = np.ones(self.nb_arms)
+        eta = np.array([self.MAB[arm].eta for arm in range(self.nb_arms)])
+        for t in tqdm(range(T), 'KG* : Iterating over T'):
+            V = (-np.inf) * np.ones((self.nb_arms, T-t))
+            for m in range(T-t-1):
+                delta_m = np.array(
+                    [mu[arm] - np.max(list(mu)[:arm] + list(mu)[arm + 1:]) for arm in range(self.nb_arms)])
+                s_m = np.sqrt((m+1)*sigma**2/((eta/sigma)**2+m+1))
+                v_m = s_m * self.kgf(-np.absolute(delta_m / (s_m + 10e-9)))
+                V[:, m] = ((T-t-m-1)*v_m/(m+1))
+            m_star = np.argmax(V, axis=1)
+            arm = rd_argmax(mu - np.max(mu) + np.array([V[arm, m_star[arm]] for arm in range(self.nb_arms)]))
+            self.update_lists(t, arm, Sa, Na, reward, arm_sequence)
+            sigma_next = np.sqrt(((sigma * eta) ** 2) / (sigma ** 2 + eta ** 2))
+            mu[arm] = (eta[arm] ** 2 * mu[arm] + reward[t] * sigma[arm] ** 2) / (eta[arm] ** 2 + sigma[arm] ** 2)
+            sigma[arm] = sigma_next[arm]
+        return np.array(reward), np.array(arm_sequence)
 
     def IR(self, mu, sigma):
         """
@@ -164,55 +212,95 @@ class GaussianMAB(GenericMAB):
         sigma = np.ones(self.nb_arms)
         for t in range(T):
             delta, v = self.IR(mu, sigma)
-            arm = self.IDSAction(delta, v)
+            arm = rd_argmax(-delta**2/v)
             eta = self.MAB[arm].eta
             self.update_lists(t, arm, Sa, Na, reward, arm_sequence)
             mu[arm] = (eta ** 2 * mu[arm] + reward[t] * sigma[arm] ** 2) / (eta ** 2 + sigma[arm] ** 2)
             sigma[arm] = (eta * sigma[arm]) ** 2 / (eta ** 2 + sigma[arm] ** 2)
         return reward, arm_sequence
 
-    def kgf(self, x):
-        return norm.cdf(x) * x + norm.pdf(x)
 
-    def KG(self, T):
+    def IR_approx(self, mu, sigma, X, f, F, N):
         """
-        Implementation of Knowledge Gradient algorithm
+        Implementation of the Information Ratio for bernoulli bandits with beta prior
+        :param b1: np.array, first parameter of the beta distribution for each arm
+        :param b2: np.array, second parameter of the beta distribution for each arm
+        :return: the two components of the Information ration delta and g
+        """
+        assert type(mu) == np.ndarray, "b1 type should be an np.array"
+        assert type(sigma) == np.ndarray, "b2 type should be an np.array"
+        maap = np.zeros((self.nb_arms, self.nb_arms))
+        p_star = np.zeros(self.nb_arms)
+        prod_F1 = np.ones((self.nb_arms, self.nb_arms, N))
+        for a in range(self.nb_arms):
+            for ap in range(self.nb_arms):
+                for app in range(self.nb_arms):
+                    if a != app and app != ap:
+                        prod_F1[a, ap] *= F[app]
+                prod_F1[a, ap] *= f[a] / N
+            p_star[a] = (prod_F1[a, a]).sum() * 20
+
+        for a in range(self.nb_arms):
+            for ap in range(self.nb_arms):
+                if a != ap:
+                    maap[ap, a] = mu[ap] - sigma[ap]**2 * (prod_F1[a, ap] * f[ap]).sum() / p_star[a]
+                else:
+                    maap[a, a] = (prod_F1[a, a] * X).sum() / p_star[a]
+
+        rho_star = np.inner(np.diag(maap), p_star)
+        delta = rho_star - mu
+        v = np.zeros(self.nb_arms)
+        for arm in range(self.nb_arms):
+            v[arm] = np.inner(p_star, (maap[arm]-mu[arm])**2)
+        return delta, v, p_star, maap
+
+    def init_approx(self, N):
+        """
+        :param N: number of points to take in the [0,1] interval
+        :return: Initialisation of the arrays for the approximation of the integrals in IDS
+        The initialization is made for uniform prior (equivalent to beta(1,1))
+        """
+        X = np.linspace(-10., 10., N)
+        f = np.repeat(norm.pdf(X, 0, 1), self.nb_arms, axis=0).reshape((N, self.nb_arms)).T
+        F = np.repeat(norm.cdf(X, 0, 1), self.nb_arms, axis=0).reshape((N, self.nb_arms)).T
+        return X, f, F
+
+    def update_approx(self, arm, m, s, X, f, F):
+        """
+        Update all functions with recursion formula. These formula are all derived
+        using the properties of the beta distribution: the pdf and cdf of beta(a, b)
+         can be used to compute the cdf and pdf of beta(a+1, b) and beta(a, b+1)
+        """
+        f[arm] = norm.pdf(X, m, s)
+        F[arm] = norm.cdf(X, m, s)
+        return f, F
+
+    def IDS_approx(self, T, N_steps=100):
+        """
+        Implementation of the Information Directed Sampling with approximation of integrals
         :param T: number of rounds
-        :return: Reward obtained by the policy and sequence of the arms chosen
+        :return: Reward obtained by the policy and sequence of chosen arms
         """
         Sa, Na, reward, arm_sequence = self.init_lists(T)
-        mu = np.zeros(self.nb_arms)
-        sigma = np.ones(self.nb_arms)
-        eta = np.array([self.MAB[arm].eta for arm in range(self.nb_arms)])
+        X, f, F = self.init_approx(N_steps)
+        mu, sigma = np.zeros(self.nb_arms), np.ones(self.nb_arms)
+        p_star = np.zeros(self.nb_arms)
         for t in range(T):
-            delta_t = np.array(
-                [mu[arm] - np.max(list(mu)[:arm] + list(mu)[arm+1:]) for arm in range(self.nb_arms)])
-            sigma_next = np.sqrt(((sigma*eta)**2)/(sigma**2+eta**2))
-            s_t = np.sqrt(sigma**2-sigma_next**2)
-            v = s_t * self.kgf(-np.absolute(delta_t / (s_t + 10e-9)))
-            arm = rd_argmax(mu + (T - t) * v)
+            if not self.flag:
+                if np.max(p_star) > self.threshold:
+                    self.flag = True
+                    self.optimal_arm = np.argmax(p_star)
+                    arm = self.optimal_arm
+                else:
+                    delta, v, p_star, maap = self.IR_approx(mu, sigma, X, f, F, N_steps)
+                    arm = rd_argmax(-delta**2/v)
+            else:
+                arm = self.optimal_arm
             self.update_lists(t, arm, Sa, Na, reward, arm_sequence)
-            mu[arm] = (eta[arm] ** 2 * mu[arm] + reward[t] * sigma[arm] ** 2) / (eta[arm] ** 2 + sigma[arm] ** 2)
-            sigma[arm] = sigma_next[arm]
-        return np.array(reward), np.array(arm_sequence)
-
-    def KG_star(self, T):
-        Sa, Na, reward, arm_sequence = self.init_lists(T)
-        mu = np.zeros(self.nb_arms)
-        sigma = np.ones(self.nb_arms)
-        eta = np.array([self.MAB[arm].eta for arm in range(self.nb_arms)])
-        for t in tqdm(range(T), 'KG* : Iterating over T'):
-            V = (-np.inf) * np.ones((self.nb_arms, T-t))
-            for m in range(T-t-1):
-                delta_m = np.array(
-                    [mu[arm] - np.max(list(mu)[:arm] + list(mu)[arm + 1:]) for arm in range(self.nb_arms)])
-                s_m = np.sqrt((m+1)*sigma**2/((eta/sigma)**2+m+1))
-                v_m = s_m * self.kgf(-np.absolute(delta_m / (s_m + 10e-9)))
-                V[:, m] = ((T-t-m-1)*v_m/(m+1))
-            m_star = np.argmax(V, axis=1)
-            arm = rd_argmax(mu - np.max(mu) + np.array([V[arm, m_star[arm]] for arm in range(self.nb_arms)]))
-            self.update_lists(t, arm, Sa, Na, reward, arm_sequence)
-            sigma_next = np.sqrt(((sigma * eta) ** 2) / (sigma ** 2 + eta ** 2))
-            mu[arm] = (eta[arm] ** 2 * mu[arm] + reward[t] * sigma[arm] ** 2) / (eta[arm] ** 2 + sigma[arm] ** 2)
-            sigma[arm] = sigma_next[arm]
-        return np.array(reward), np.array(arm_sequence)
+            #prev_mu, prev_sigma = np.array([copy.copy(mu[arm]), copy.copy(sigma[arm])])
+            eta = self.MAB[arm].eta
+            mu[arm] = (eta ** 2 * mu[arm] + reward[t] * sigma[arm] ** 2) / (eta ** 2 + sigma[arm] ** 2)
+            sigma[arm] = np.sqrt((eta * sigma[arm]) ** 2 / (eta ** 2 + sigma[arm] ** 2))
+            #print('mu : {}, \n sigma : {}'.format(mu, sigma))
+            f, F = self.update_approx(arm, mu[arm], sigma[arm], X, f, F)
+        return reward, arm_sequence
