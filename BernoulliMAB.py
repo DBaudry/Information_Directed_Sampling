@@ -34,15 +34,15 @@ class BetaBernoulliMAB(GenericMAB):
             self.update_lists(t, arm, Sa, Na, reward, arm_sequence)
         return reward, arm_sequence
 
-    def BayesUCB(self, T, a, b, c=0):
+    def BayesUCB(self, T, p1, p2, c=0):
         """
-        BayesUCB implementation in the case of a Beta(a,b) prior on the theta parameters
+        BayesUCB implementation in the case of a Beta(p1, p2) prior on the theta parameters
         for a BinomialMAB.
         Implementation of On Bayesian Upper Confidence Bounds for Bandit Problems, Kaufman & al,
         from http://proceedings.mlr.press/v22/kaufmann12/kaufmann12.pdf
         :param T: number of rounds
-        :param a: First parameter of the Beta prior probability distribution
-        :param b: Second parameter of the Beta prior probability distribution
+        :param p1: First parameter of the Beta prior probability distribution
+        :param p2: Second parameter of the Beta prior probability distribution
         :param c: Parameter for the quantiles. Default value c=0
         :return: Reward obtained by the policy and sequence of the arms choosed
         """
@@ -51,9 +51,9 @@ class BetaBernoulliMAB(GenericMAB):
         for t in range(T):
             for k in range(self.nb_arms):
                 if Na[k] >= 1:
-                    quantiles[k] = beta.ppf(1-1/(t*np.log(T)**c), Sa[k] + a, b + Na[k] - Sa[k])
+                    quantiles[k] = beta.ppf(1-1/((t+1)*np.log(T)**c), Sa[k] + p1, p2 + Na[k] - Sa[k])
                 else:
-                    quantiles[k] = beta.ppf(1-1/(t*np.log(T)**c), a, b)
+                    quantiles[k] = beta.ppf(1-1/((t+1)*np.log(T)**c), p1, p2)
             arm = rd_argmax(quantiles)
             self.update_lists(t, arm, Sa, Na, reward, arm_sequence)
         return reward, arm_sequence
@@ -211,6 +211,34 @@ class BetaBernoulliMAB(GenericMAB):
             print(res)
         return reward, arm_sequence
 
+    # def KG2(self, T):
+    #     """
+    #     Implementation of Knowledge Gradient algorithm
+    #     :param T: number of rounds
+    #     :return: Reward obtained by the policy and sequence of the chosen arms
+    #     """
+    #     Sa, Na, reward, arm_sequence = self.init_lists(T)
+    #     for t in range(T):
+    #         if t < self.nb_arms:
+    #             arm = t
+    #         else:
+    #             mu = Sa/Na
+    #             Vt = max(mu)
+    #             v = np.zeros(self.nb_arms)
+    #             for a in range(self.nb_arms):
+    #                 mu_up = (Sa[a]+1)/(Na[a]+1)
+    #                 mu_down = Sa[a]/(Na[a]+1)
+    #                 if Vt != mu[a]:
+    #                     if mu_up <= Vt:
+    #                         v[a] = 0
+    #                     else:
+    #                         v[a] = mu[a]*(mu_up-Vt)
+    #                 else:
+    #                     v[a] = Vt*mu_up+(1-Vt)*max([mu_down, max([mu[ap] for ap in range(self.nb_arms) if ap != a])])-Vt
+    #             arm = rd_argmax(Sa / Na + (T - t) * v)
+    #         self.update_lists(t, arm, Sa, Na, reward, arm_sequence)
+    #     return reward, arm_sequence
+
     def KG(self, T):
         """
         Implementation of Knowledge Gradient algorithm
@@ -218,24 +246,40 @@ class BetaBernoulliMAB(GenericMAB):
         :return: Reward obtained by the policy and sequence of the chosen arms
         """
         Sa, Na, reward, arm_sequence = self.init_lists(T)
+        v = np.zeros(self.nb_arms)
         for t in range(T):
             if t < self.nb_arms:
                 arm = t
             else:
-                mu = Sa/Na
-                Vt = max(mu)
-                v = np.zeros(self.nb_arms)
-                for a in range(self.nb_arms):
-                    mu_up = (Sa[a]+1)/(Na[a]+1)
-                    mu_down = Sa[a]/(Na[a]+1)
-                    if Vt != mu[a]:
-                        if mu_up <= Vt:
-                            v[a] = 0
-                        else:
-                            v[a] = mu[a]*(mu_up-Vt)
+                mu = Sa / Na
+                c = np.array([max([mu[i] for i in range(self.nb_arms) if i != arm]) for arm in range(self.nb_arms)])
+                for arm in range(self.nb_arms):
+                    if mu[arm] <= c[arm] < (Sa[arm]+1)/(Na[arm]+1):
+                        v[arm] = mu[arm] * ((Sa[arm]+1)/(Na[arm]+1) - c[arm])
+                    elif Sa[arm]/(Na[arm]+1) < c[arm] < mu[arm]:
+                        v[arm] = (1-mu[arm])*(c[arm]-Sa[arm]/(Na[arm]+1))
                     else:
-                        v[a] = Vt*mu_up+(1-Vt)*max([mu_down, max([mu[ap] for ap in range(self.nb_arms) if ap != a])])-Vt
-                arm = rd_argmax(Sa / Na + (T - t) * v)
+                        v[arm] = 0
+                arm = rd_argmax(mu + (T-t)*v)
+            self.update_lists(t, arm, Sa, Na, reward, arm_sequence)
+        return reward, arm_sequence
 
+    def Approx_KG_star(self, T):
+        Sa, Na, reward, arm_sequence = self.init_lists(T)
+        m = np.zeros(self.nb_arms)
+        for t in range(T):
+            if t < self.nb_arms:
+                arm = t
+            else:
+                mu = Sa / Na
+                c = np.array([max([mu[i] for i in range(self.nb_arms) if i != arm]) for arm in range(self.nb_arms)])
+                for arm in range(self.nb_arms):
+                    if c[arm] >= mu[arm]:
+                        ta = Na[arm] * (c[arm]-mu[arm]) / (1-c[arm]+10e-9)
+                        m[arm] = np.nan_to_num(mu[arm]**ta/ta)
+                    else:
+                        ta = Na[arm] * (mu[arm]-c[arm]) / (c[arm]+10e-9)
+                        m[arm] = ((1-mu[arm])**ta)/ta
+                arm = rd_argmax(mu + (T-t)*m)
             self.update_lists(t, arm, Sa, Na, reward, arm_sequence)
         return reward, arm_sequence
