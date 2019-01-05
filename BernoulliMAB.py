@@ -7,7 +7,7 @@ class BetaBernoulliMAB(GenericMAB):
         self.Cp = sum([(self.mu_max-x)/self.kl(x, self.mu_max) for x in self.means if x != self.mu_max])
         self.flag = False
         self.optimal_arm = None
-        self.threshold = 0.9
+        self.threshold = 0.99
 
     @staticmethod
     def kl(x, y):
@@ -139,11 +139,13 @@ class BetaBernoulliMAB(GenericMAB):
                     if a != app and app != ap:
                         prod_F1[a, ap] = prod_F1[a, ap]*F[app]
                 prod_F1[a, ap] *= f[a]/N
-                p_star[a] = (prod_F1[a, a]).sum()
-                if a != ap:
-                    maap[ap, a] = (prod_F1[a, ap]*G[ap]).sum()/p_star[a]
-                else:
-                    maap[a, a] = (prod_F1[a, a]*X).sum()/p_star[a]
+            p_star[a] = (prod_F1[a, a]).sum()
+        for a in range(self.nb_arms):
+                for ap in range(self.nb_arms):
+                    if a != ap:
+                        maap[ap, a] = (prod_F1[a, ap]*G[ap]).sum()/p_star[a]
+                    else:
+                        maap[a, a] = (prod_F1[a, a]*X).sum()/p_star[a]
         rho_star = np.inner(np.diag(maap), p_star)
         delta = rho_star - b1/(b1+b2)
         g = np.zeros(self.nb_arms)
@@ -198,13 +200,24 @@ class BetaBernoulliMAB(GenericMAB):
                     arm = self.optimal_arm
                 else:
                     delta, g, p_star, maap = self.IR_approx(N_steps, beta_1, beta_2, X, f, F, G)
+                    # arm = rd_argmax(-delta**2/g)
                     arm = self.IDSAction(delta, g)
+                    # print('chosen arm: {}'.format(arm))
+                    # print('IDS action : {}'.format(self.IDSAction0(delta, g)))
             else:
                 arm = self.optimal_arm
             self.update_lists(t, arm, Sa, Na, reward, arm_sequence)
             prev_beta = np.array([copy.copy(beta_1[arm]), copy.copy(beta_2[arm])])
             beta_1[arm] += reward[t]
             beta_2[arm] += 1-reward[t]
+            # print(t)
+            # print(Sa/Na)
+            # print(Na)
+            # print(delta)
+            # print(g)
+            # print('ratio : {}'.format(delta**2/g))
+            # print(p_star)
+            # print(maap)
             f, F, G, B = self.update_approx(arm, reward[t], prev_beta, X, f, F, G, B)
         if display_results:
             res = {'delta': delta, 'g': g, 'p_star': p_star, 'maap': maap }

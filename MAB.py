@@ -218,7 +218,7 @@ class GenericMAB:
             Sa[arm] += np.random.binomial(1, reward[t])-reward[t]
         return reward, arm_sequence
 
-    def IDSAction(self, delta, g):
+    def IDSAction0(self, delta, g):
         Q = np.zeros((self.nb_arms, self.nb_arms))
         IR = np.ones((self.nb_arms, self.nb_arms)) * np.inf
         for a in range(self.nb_arms-1):
@@ -237,6 +237,25 @@ class GenericMAB:
                 else:
                     Q[a, ap] = 1
                 IR[a, ap] = (Q[a, ap]*(da-dap)+dap)**2/(Q[a, ap]*(ga-gap)+gap)
+        amin = rd_argmax(-IR.reshape(self.nb_arms*self.nb_arms))
+        a, ap = amin//self.nb_arms, amin % self.nb_arms
+        b = np.random.binomial(1, Q[a, ap])
+        return int(b*a+(1-b)*ap)
+
+    def IDSAction(self, delta, g):
+        Q = np.zeros((self.nb_arms, self.nb_arms))
+        IR = np.ones((self.nb_arms, self.nb_arms))*np.inf
+        q = np.linspace(0, 1, 1000)
+        for a in range(self.nb_arms-1):
+            for ap in range(a+1, self.nb_arms):
+                if g[a] < 1e-6 or g[ap] < 1e-6:
+                    return rd_argmax(-g)
+                da, dap = delta[a], delta[ap]
+                ga, gap = g[a], g[ap]
+                qaap = q[rd_argmax(-(q*da+(1-q)*dap)**2/(q*ga+(1-q)*gap))]
+                # print('qaap {}'.format(qaap))
+                IR[a, ap] = (qaap*(da-dap)+dap)**2/(qaap*(ga-gap)+gap)
+                Q[a, ap] = qaap
         amin = rd_argmax(-IR.reshape(self.nb_arms*self.nb_arms))
         a, ap = amin//self.nb_arms, amin % self.nb_arms
         b = np.random.binomial(1, Q[a, ap])
