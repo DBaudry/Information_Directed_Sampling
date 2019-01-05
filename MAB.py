@@ -161,6 +161,26 @@ class GenericMAB:
             self.update_lists(t, arm, Sa, Na, reward, arm_sequence)
         return reward, arm_sequence
 
+    def UCB_Tuned(self, T):
+        """
+        Implementation of the UCB-tuned algorithm
+        :param T: Number of rounds
+        :param rho: Parameter for balancing between exploration and exploitation
+        :return: Reward obtained by the policy and sequence of the arms choosed
+        """
+        Sa, Na, reward, arm_sequence = self.init_lists(T)
+        S, m = np.zeros(self.nb_arms), np.zeros(self.nb_arms)
+        for t in range(T):
+            if t < self.nb_arms:
+                arm = t
+            else:
+                for arm in range(self.nb_arms):
+                    S[arm] = sum([r ** 2 for r in reward[np.where(arm_sequence == arm)]])/Na[arm] - (Sa[arm]/ Na[arm])**2
+                    m[arm] = min(0.25, S[arm]+np.sqrt(2*np.log(t+1)/Na[arm]))
+                arm = rd_argmax(Sa/Na+np.sqrt(np.log(t+1)/Na*m))
+            self.update_lists(t, arm, Sa, Na, reward, arm_sequence)
+        return reward, arm_sequence
+
     def MOSS(self, T, rho):
         """
         Implementation of the Minimax Optimal Strategy in the Stochastic case (MOSS).

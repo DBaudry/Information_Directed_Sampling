@@ -21,8 +21,9 @@ default_param = {
 }
 
 
-def beta_bernoulli_expe(n_expe, n_arms, T, methods=['UCB1', 'MOSS', 'TS', 'KG', 'IDS_approx'], param=default_param,
+def beta_bernoulli_expe(n_expe, n_arms, T, methods=['UCB_Tuned', 'Bayes_UCB', 'KG', 'TS', 'Approx_KG*', 'UCB1', 'MOSS', 'IDS_approx'], param=default_param,
                         doplot=False):
+    #
     all_regrets = np.zeros((len(methods), n_expe, T))
     res = {}
     for j in tqdm(range(n_expe)):
@@ -30,8 +31,11 @@ def beta_bernoulli_expe(n_expe, n_arms, T, methods=['UCB1', 'MOSS', 'TS', 'KG', 
         my_mab = BetaBernoulliMAB(p)
         res['UCB1'] = my_mab.regret(my_mab.UCB1(T, rho=param['UCB1'])[0], T)
         res['TS'] = my_mab.regret(my_mab.TS(T)[0], T)
+        res['UCB_Tuned'] = my_mab.regret(my_mab.UCB_Tuned(T)[0], T)
+        res['Bayes_UCB'] = my_mab.regret(my_mab.BayesUCB(T, p1=param['BayesUCB'][0], p2=param['BayesUCB'][1])[0], T)
         res['MOSS'] = my_mab.regret(my_mab.MOSS(T, rho=param['MOSS'])[0], T)
         res['KG'] = my_mab.regret(my_mab.KG(T)[0], T)
+        res['Approx_KG*'] = my_mab.regret(my_mab.Approx_KG_star(T)[0], T)
         res['IDS_approx'] = my_mab.regret(my_mab.IDS_approx(T, N_steps=param['IDS_approx'])[0], T)
         for i, m in enumerate(methods):
             all_regrets[i, j] = res[m]
