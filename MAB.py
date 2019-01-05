@@ -221,22 +221,26 @@ class GenericMAB:
     def IDSAction0(self, delta, g):
         Q = np.zeros((self.nb_arms, self.nb_arms))
         IR = np.ones((self.nb_arms, self.nb_arms)) * np.inf
+        q = np.linspace(0, 1, 1000)
         for a in range(self.nb_arms-1):
             for ap in range(a+1, self.nb_arms):
                 da, dap = delta[a], delta[ap]
                 ga, gap = g[a], g[ap]
-                q2 = -1.
-                if da != dap and ga != gap:
-                    q2 = dap/(da-dap)-2*gap/(ga-gap)
-                if 0 <= q2 <= 1:
-                    Q[a, ap] = q2
-                elif da**2/ga > dap**2/gap:
-                    Q[a, ap] = 0
-                elif da**2/ga == dap**2:
-                    Q[a, ap] = np.random.choice([0, 1])
-                else:
-                    Q[a, ap] = 1
-                IR[a, ap] = (Q[a, ap]*(da-dap)+dap)**2/(Q[a, ap]*(ga-gap)+gap)
+                qaap = q[rd_argmax(-(q*da+(1-q)*dap)**2 / (q*ga+(1-q)*gap))]
+                # q2 = -1.
+                # if da != dap and ga != gap:
+                #     q2 = dap/(da-dap)-2*gap/(ga-gap)
+                # if 0 <= q2 <= 1:
+                #     Q[a, ap] = q2
+                # elif da**2/ga > dap**2/gap:
+                #     Q[a, ap] = 0
+                # elif da**2/ga == dap**2:
+                #     Q[a, ap] = np.random.choice([0, 1])
+                # else:
+                #     Q[a, ap] = 1
+                #IR[a, ap] = (Q[a, ap]*(da-dap)+dap)**2/(Q[a, ap]*(ga-gap)+gap)
+                IR[a, ap] = (qaap*(da-dap)+dap)**2/(qaap*(ga-gap)+gap)
+                Q[a, ap] = qaap
         amin = rd_argmax(-IR.reshape(self.nb_arms*self.nb_arms))
         a, ap = amin//self.nb_arms, amin % self.nb_arms
         b = np.random.binomial(1, Q[a, ap])
@@ -267,7 +271,7 @@ class GenericMAB:
     def BayesUCB(self, T, p1, p2, c=0.):
         raise NotImplementedError
 
-    def GPUCB(self, T, c):
+    def GPUCB(self, T):
         raise NotImplementedError
 
     def Tuned_GPUCB(self, T, c):

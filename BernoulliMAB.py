@@ -224,33 +224,6 @@ class BetaBernoulliMAB(GenericMAB):
             print(res)
         return reward, arm_sequence
 
-    # def KG2(self, T):
-    #     """
-    #     Implementation of Knowledge Gradient algorithm
-    #     :param T: number of rounds
-    #     :return: Reward obtained by the policy and sequence of the chosen arms
-    #     """
-    #     Sa, Na, reward, arm_sequence = self.init_lists(T)
-    #     for t in range(T):
-    #         if t < self.nb_arms:
-    #             arm = t
-    #         else:
-    #             mu = Sa/Na
-    #             Vt = max(mu)
-    #             v = np.zeros(self.nb_arms)
-    #             for a in range(self.nb_arms):
-    #                 mu_up = (Sa[a]+1)/(Na[a]+1)
-    #                 mu_down = Sa[a]/(Na[a]+1)
-    #                 if Vt != mu[a]:
-    #                     if mu_up <= Vt:
-    #                         v[a] = 0
-    #                     else:
-    #                         v[a] = mu[a]*(mu_up-Vt)
-    #                 else:
-    #                     v[a] = Vt*mu_up+(1-Vt)*max([mu_down, max([mu[ap] for ap in range(self.nb_arms) if ap != a])])-Vt
-    #             arm = rd_argmax(Sa / Na + (T - t) * v)
-    #         self.update_lists(t, arm, Sa, Na, reward, arm_sequence)
-    #     return reward, arm_sequence
 
     def KG(self, T):
         """
