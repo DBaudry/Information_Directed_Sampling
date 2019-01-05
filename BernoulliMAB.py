@@ -7,7 +7,7 @@ class BetaBernoulliMAB(GenericMAB):
         self.Cp = sum([(self.mu_max-x)/self.kl(x, self.mu_max) for x in self.means if x != self.mu_max])
         self.flag = False
         self.optimal_arm = None
-        self.threshold = 0.999
+        self.threshold = 0.9
 
     @staticmethod
     def kl(x, y):
