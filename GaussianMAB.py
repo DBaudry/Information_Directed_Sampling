@@ -9,7 +9,7 @@ class GaussianMAB(GenericMAB):
         super().__init__(method=['G']*len(p), param=p)
         self.flag = False
         self.optimal_arm = None
-        self.threshold = 0.99
+        self.threshold = 0.8
 
     @staticmethod
     def kl(x, y):
@@ -140,66 +140,75 @@ class GaussianMAB(GenericMAB):
         mu = np.zeros(self.nb_arms)
         sigma = np.ones(self.nb_arms)
         eta = np.array([self.MAB[arm].eta for arm in range(self.nb_arms)])
-        for t in tqdm(range(T), 'KG* : Iterating over T'):
-            V = (-np.inf) * np.ones((self.nb_arms, T-t))
-            for m in range(T-t-1):
-                delta_m = np.array(
-                    [mu[arm] - np.max(list(mu)[:arm] + list(mu)[arm + 1:]) for arm in range(self.nb_arms)])
-                s_m = np.sqrt((m+1)*sigma**2/((eta/sigma)**2+m+1))
-                v_m = s_m * self.kgf(-np.absolute(delta_m / (s_m + 10e-9)))
-                V[:, m] = ((T-t-m-1)*v_m/(m+1))
-            m_star = np.argmax(V, axis=1)
-            arm = rd_argmax(mu - np.max(mu) + np.array([V[arm, m_star[arm]] for arm in range(self.nb_arms)]))
+        for t in range(T):
+            delta_t = np.array(
+                [mu[i] - np.max(list(mu)[:i] + list(mu)[i + 1:]) for i in range(self.nb_arms)])
+            r = (delta_t / sigma) ** 2
+            m_lower = eta / (4 * sigma ** 2) * (-1 + r + np.sqrt(1 + 6 * r + r ** 2))
+            m_higher = eta / (4 * sigma ** 2 + 10e-9) * (1 + r + np.sqrt(1 + 10 * r + r ** 2))
+            v = np.zeros(self.nb_arms)
+            m_star = np.zeros(self.nb_arms)
+            for arm in range(self.nb_arms):
+                if T - t <= m_lower[arm]:
+                    m_star[arm] = T - t
+                elif (delta_t[arm] == 0) or (m_higher[arm] <= 1):
+                    m_star[arm] = 1
+                else:
+                    m_star[arm] = np.ceil(0.5 * ((m_lower + m_higher)[arm])).astype(int)  # approximation
+            s_m = np.sqrt((m_star + 1) * sigma ** 2 / ((eta / sigma) ** 2 + m_star + 1))
+            v_m = s_m * self.kgf(-np.absolute(delta_t / (s_m + 10e-9)))
+            arm = rd_argmax(mu - np.max(mu) + (T-t)*v_m)
             self.update_lists(t, arm, Sa, Na, reward, arm_sequence)
             sigma_next = np.sqrt(((sigma * eta) ** 2) / (sigma ** 2 + eta ** 2))
             mu[arm] = (eta[arm] ** 2 * mu[arm] + reward[t] * sigma[arm] ** 2) / (eta[arm] ** 2 + sigma[arm] ** 2)
             sigma[arm] = sigma_next[arm]
-        return np.array(reward), np.array(arm_sequence)
+        return reward, arm_sequence
+
 
     def IR(self, mu, sigma):
-        """
-        Implementation of the Information Ratio for gaussian bandits with gaussian prior
-        :param b1: list, first parameter of the beta distribution for each arm
-        :param b2: list, second parameter of the beta distribution for each arm
-        :return: the two components of the Information ration delta and g
-        """
-        def joint_cdf(x):
-            result = 1.
-            for a in range(self.nb_arms):
-                result = result*norm.cdf(x, mu[a], sigma[a])
-            return result
+            """
+            Implementation of the Information Ratio for gaussian bandits with gaussian prior
+            :param b1: list, first parameter of the beta distribution for each arm
+            :param b2: list, second parameter of the beta distribution for each arm
+            :return: the two components of the Information ration delta and g
+            """
+            def joint_cdf(x):
+                result = 1.
+                for a in range(self.nb_arms):
+                    result = result*norm.cdf(x, mu[a], sigma[a])
+                return result
 
-        def dp_star(x, a):
-            return norm.pdf(x, mu[a], sigma[a])*joint_cdf(x)/norm.cdf(x, mu[a], sigma[a])
+            def dp_star(x, a):
+                return norm.pdf(x, mu[a], sigma[a])*joint_cdf(x)/norm.cdf(x, mu[a], sigma[a])
 
-        def p_star(a):
-            x_sup = np.max([np.max(mu) + 5 * np.max(sigma), mu[a] + 5 * sigma[a]])
-            x_inf = np.min([np.min(mu) - 5 * np.max(sigma), mu[a] - 5 * sigma[a]])
-            return integrate.quad(lambda x: dp_star(x, a), x_inf, x_sup, epsabs=1e-2)[0]
+            def p_star(a):
+                #x_sup = np.max([np.max(mu) + 5 * np.max(sigma), mu[a] + 5 * sigma[a]])
+                #x_inf = np.min([np.min(mu) - 5 * np.max(sigma), mu[a] - 5 * sigma[a]])
+                return integrate.quad(lambda x: dp_star(x, a), mu[a]-3*sigma[a], mu[a]+3*sigma[a], epsabs=1e-2)[0]
 
-        def MAA(a, p):
-            x_sup = np.max([np.max(mu) + 5 * np.max(sigma), mu[a] + 5 * sigma[a]])
-            x_inf = np.min([np.min(mu) - 5 * np.max(sigma), mu[a] - 5 * sigma[a]])
-            return integrate.quad(lambda x: x*dp_star(x, a), x_inf, x_sup, epsabs=1e-2)[0]/p[a]
+            def MAA(a, p):
+                #x_sup = np.max([np.max(mu) + 5 * np.max(sigma), mu[a] + 5 * sigma[a]])
+                #x_inf = np.min([np.min(mu) - 5 * np.max(sigma), mu[a] - 5 * sigma[a]])
+                return integrate.quad(lambda x: x*dp_star(x, a),mu[a]-3*sigma[a], mu[a]+3*sigma[a], epsabs=1e-2)[0]/p[a]
 
-        def MAAP(ap, a, p):
-            x_sup = np.max([np.max(mu) + 5 * np.max(sigma), np.max([mu[a], mu[ap]]) + 5 * np.max([sigma[a], sigma[ap]])])
-            x_inf = np.min([np.min(mu) - 5 * np.max(sigma), np.min([mu[a], mu[ap]]) - 5 * np.max([sigma[a], sigma[ap]])])
-            return mu[ap]-(sigma[ap]**2)/p[a]*integrate.quad(
-                lambda x: dp_star(x, a)*norm.pdf(x, mu[ap], sigma[ap])/norm.cdf(x, mu[ap], sigma[ap]),
-                x_inf, x_sup, epsabs=1e-2)[0]
+            def MAAP(ap, a, p):
+                #x_sup = np.max([np.max(mu) + 5 * np.max(sigma), np.max([mu[a], mu[ap]]) + 5 * np.max([sigma[a], sigma[ap]])])
+                #x_inf = np.min([np.min(mu) - 5 * np.max(sigma), np.min([mu[a], mu[ap]]) - 5 * np.max([sigma[a], sigma[ap]])])
+                return mu[ap]-(sigma[ap]**2)/p[a]*integrate.quad(
+                    lambda x: dp_star(x, a)*norm.pdf(x, mu[ap], sigma[ap])/norm.cdf(x, mu[ap], sigma[ap]),
+                    mu[a] - 3 * sigma[a], mu[a] + 3 * sigma[a], epsabs=1e-2)[0]
 
-        def v(a, p, M):
-            vp = p*((M[a]-mu[a])**2)
-            return vp.sum()
+            def v(a, p, M):
+                vp = p*((M[a]-mu[a])**2)
+                return vp.sum()
 
-        ps = np.array([p_star(a) for a in range(self.nb_arms)])
-        ma = np.array([MAA(a, ps) for a in range(self.nb_arms)])
-        maap = np.array([[MAAP(a, ap, ps) for a in range(self.nb_arms)] for ap in range(self.nb_arms)])
-        rho = (ps*ma).sum()
-        delta = rho-mu
-        v = np.array([v(a, ps, maap.T) for a in range(self.nb_arms)])
-        return delta, v
+            ps = np.array([p_star(a) for a in range(self.nb_arms)])
+            ma = np.array([MAA(a, ps) for a in range(self.nb_arms)])
+            maap = np.array([[MAAP(a, ap, ps) for a in range(self.nb_arms)] for ap in range(self.nb_arms)])
+            rho = (ps*ma).sum()
+            delta = rho-mu
+            v = np.array([v(a, ps, maap.T) for a in range(self.nb_arms)])
+            return delta, v
 
     def IDS(self, T):
         """
@@ -216,7 +225,7 @@ class GaussianMAB(GenericMAB):
             eta = self.MAB[arm].eta
             self.update_lists(t, arm, Sa, Na, reward, arm_sequence)
             mu[arm] = (eta ** 2 * mu[arm] + reward[t] * sigma[arm] ** 2) / (eta ** 2 + sigma[arm] ** 2)
-            sigma[arm] = (eta * sigma[arm]) ** 2 / (eta ** 2 + sigma[arm] ** 2)
+            sigma[arm] = np.sqrt((eta * sigma[arm]) ** 2 / (eta ** 2 + sigma[arm] ** 2))
         return reward, arm_sequence
 
 
@@ -275,7 +284,7 @@ class GaussianMAB(GenericMAB):
         F[arm] = norm.cdf(X, m, s)
         return f, F
 
-    def IDS_approx(self, T, N_steps=100):
+    def IDS_approx(self, T, N_steps=10000):
         """
         Implementation of the Information Directed Sampling with approximation of integrals
         :param T: number of rounds
