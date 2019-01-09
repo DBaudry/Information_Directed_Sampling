@@ -6,10 +6,12 @@ from MAB import GenericMAB
 from BernoulliMAB import BetaBernoulliMAB
 from GaussianMAB import GaussianMAB
 from FiniteSetsMAB import FiniteSets
+from LinMAB import *
 import matplotlib.pyplot as plt
 from scipy.stats import norm
 from tqdm import tqdm
 
+np.random.seed(42)
 
 default_param = {
     'UCB1': 0.2,
@@ -126,26 +128,28 @@ def sanity_check_expe():
 
 ##### Gaussian test ######
 
-def check_gaussian(n_expe, n_arms, T, methods=['TS', 'UCB1', 'GPUCB', 'Tuned_GPUCB', 'BayesUCB', 'KG', 'KG*'], param=default_param,
-                   doplot=False):
-    #
+def check_gaussian(n_expe, n_arms, T, methods=['TS', 'KG*', 'IDS_approx'], param=default_param,
+                   doplot=True):
+    # 'UCB1', 'GPUCB', 'Tuned_GPUCB', 'BayesUCB', 'KG', 'KG*'
     all_regrets = np.zeros((len(methods), n_expe, T))
     res = {}
     for j in tqdm(range(n_expe)):
         mu = np.random.normal(0, 1, n_arms)
         sigma = [1] * len(mu)
+        #print(mu, sigma)
         p = []
         for i in range(len(mu)):
             p.append([mu[i], sigma[i]])
         my_mab = GaussianMAB(p)
         res['TS'] = my_mab.regret(my_mab.TS(T)[0], T)
-        res['BayesUCB'] = my_mab.regret(my_mab.BayesUCB(T, p1=param['BayesUCB'][0], p2=param['BayesUCB'][0])[0], T)
-        res['UCB1'] = my_mab.regret(my_mab.UCB1(T, rho=param['UCB1'])[0], T)
-        res['GPUCB'] = my_mab.regret(my_mab.GPUCB(T)[0], T)
-        res['Tuned_GPUCB'] = my_mab.regret(my_mab.Tuned_GPUCB(T, c = param['GPUCB'])[0], T)
-        res['KG'] = my_mab.regret(my_mab.KG(T)[0], T)
+        #res['BayesUCB'] = my_mab.regret(my_mab.BayesUCB(T, p1=param['BayesUCB'][0], p2=param['BayesUCB'][0])[0], T)
+        #res['UCB1'] = my_mab.regret(my_mab.UCB1(T, rho=param['UCB1'])[0], T)
+        #res['GPUCB'] = my_mab.regret(my_mab.GPUCB(T)[0], T)
+        #res['Tuned_GPUCB'] = my_mab.regret(my_mab.Tuned_GPUCB(T, c = param['GPUCB'])[0], T)
+        #res['KG'] = my_mab.regret(my_mab.KG(T)[0], T)
         res['KG*'] = my_mab.regret(my_mab.KG_star(T)[0], T)
-        #res['IDS_approx'] = my_mab.regret(my_mab.IDS_approx(T, N_steps=param['IDS_approx'])[0], T)
+        #res['IDS'] = my_mab.regret(my_mab.IDS(T)[0], T)
+        res['IDS_approx'] = my_mab.regret(my_mab.IDS_approx(T, N_steps=param['IDS_approx'])[0], T)
         #res['IDS'] = my_mab.regret(my_mab.IDS(T)[0], T)
         for i, m in enumerate(methods):
             all_regrets[i, j] = res[m]
@@ -191,3 +195,24 @@ def approxIntegral():
         plt.legend()
     plt.show()
 
+def LinearGaussianMAB(n_expe, n_features, n_arms, T, plot=True):
+    random_state = 24 #np.random.randint(0, 42)
+    u = 1/np.sqrt(5)
+    model = PaperLinModel(u, n_features, n_arms, sigma=10, random_state=random_state); model.rewards_plot()
+    regret_linUCB, regret_IDS = np.zeros((n_expe, T)), np.zeros((n_expe, T))
+    lMAB = LinMAB(model)
+    for n in tqdm(range(n_expe)):
+        reward_linUCB, arm_sequence_linUCB = lMAB.LinUCB(T)
+        reward_IDS, arm_sequence_IDS = lMAB.IDS(T, M=10000)
+        regret_linUCB[n, :] = model.best_arm_reward() - reward_linUCB
+        regret_IDS[n, :] = model.best_arm_reward() - reward_IDS
+    mean_regret_linUCB = np.array([np.mean(regret_linUCB[:, t]) for t in range(T)]).cumsum()
+    mean_regret_IDS = np.array([np.mean(regret_IDS[:, t]) for t in range(T)]).cumsum()
+    if plot:
+        plt.plot(mean_regret_linUCB, label="LinUCB")
+        plt.plot(mean_regret_IDS, label="IDS")
+        plt.legend()
+        plt.show()
+
+
+LinearGaussianMAB(1, 5, 30, 250)
