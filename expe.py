@@ -193,24 +193,24 @@ def approxIntegral():
         plt.legend()
     plt.show()
 
+
 def LinearGaussianMAB(n_expe, n_features, n_arms, T, plot=True):
+    methods = ['LinUCB', 'IDS', 'TS']
     random_state = 24 #np.random.randint(0, 42)
     u = 1/np.sqrt(5)
     model = PaperLinModel(u, n_features, n_arms, sigma=10, random_state=random_state); model.rewards_plot()
-    regret_linUCB, regret_IDS = np.zeros((n_expe, T)), np.zeros((n_expe, T))
+    regret = np.zeros((len(methods), n_expe, T))
     lMAB = LinMAB(model)
     for n in tqdm(range(n_expe)):
-        reward_linUCB, arm_sequence_linUCB = lMAB.LinUCB(T)
-        reward_IDS, arm_sequence_IDS = lMAB.IDS(T, M=10000)
-        regret_linUCB[n, :] = model.best_arm_reward() - reward_linUCB
-        regret_IDS[n, :] = model.best_arm_reward() - reward_IDS
-    mean_regret_linUCB = np.array([np.mean(regret_linUCB[:, t]) for t in range(T)]).cumsum()
-    mean_regret_IDS = np.array([np.mean(regret_IDS[:, t]) for t in range(T)]).cumsum()
+        for i, m in enumerate(methods):
+            alg = lMAB.__getattribute__(m)
+            reward, arm_sequence = alg(T)
+            regret[i, n, :] = model.best_arm_reward() - reward
+    mean_regret = [np.array([np.mean(regret[i, :, t]) for t in range(T)]).cumsum() for i in range(len(methods))]
     if plot:
-        plt.plot(mean_regret_linUCB, label="LinUCB")
-        plt.plot(mean_regret_IDS, label="IDS")
+        for i, m in enumerate(methods):
+            plt.plot(mean_regret[i], label=m)
         plt.legend()
         plt.show()
 
-
-LinearGaussianMAB(1, 5, 30, 250)
+LinearGaussianMAB(10, 5, 30, 250)
