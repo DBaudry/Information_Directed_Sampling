@@ -43,6 +43,9 @@ class LinMAB():
         self.features = model.features
         self.reward = model.reward
         self.eta = model.eta
+        self.flag = False
+        self.optimal_arm = None
+        self.threshold = 0.99
 
     def TS(self, T):
         arm_sequence, reward = np.zeros(T), np.zeros(T)
@@ -92,7 +95,7 @@ class LinMAB():
             reward[t], arm_sequence[t] = r_t, a_t
         return reward, arm_sequence
 
-    def Tuned_GPUCB(self, T, c=3.9):
+    def Tuned_GPUCB(self, T, c=3.5):
         arm_sequence, reward = np.zeros(T), np.zeros(T)
         mu_t, sigma_t = self.initPrior()
         for t in range(T):
@@ -122,21 +125,29 @@ class LinMAB():
         mu = np.mean(thetas, axis=0)
         theta_hat = np.argmax(np.dot(self.features, thetas.T), axis=0)
         theta_hat_ = [thetas[np.where(theta_hat==a)] for a in range(self.n_a)]
-        theta_hat_card = np.array([len(theta_hat_[a]) for a in range(self.n_a)])
-        p_a = theta_hat_card/M
+        p_a = np.array([len(theta_hat_[a]) for a in range(self.n_a)])/M
         mu_a = np.nan_to_num(np.array([np.mean([theta_hat_[a]], axis=1).squeeze() for a in range(self.n_a)]))
-        L_hat = np.sum(np.array([p_a[a]*np.outer(mu_a[a], mu_a[a].T) for a in range(self.n_a)]), axis=0)
+        L_hat = np.sum(np.array([p_a[a]*np.outer(mu_a[a]-mu, mu_a[a]-mu) for a in range(self.n_a)]), axis=0)
         rho_star = np.sum(np.array([p_a[a]*np.dot(self.features[a], mu_a[a]) for a in range(self.n_a)]), axis=0)
-        v = np.array([np.dot(self.features[a], np.dot(L_hat, self.features[a])) for a in range(self.n_a)])
+        v = np.array([np.dot(np.dot(self.features[a], L_hat), self.features[a].T) for a in range(self.n_a)])
         delta = np.array([rho_star - np.dot(self.features[a], mu) for a in range(self.n_a)])
         arm = rd_argmax(-delta**2/v)
-        return arm
+        return arm, p_a
 
     def IDS(self, T, M=10000):
         mu_t, sigma_t = self.initPrior()
         reward, arm_sequence = np.zeros(T), np.zeros(T)
+        p_a = np.zeros(self.n_a)
         for t in range(T):
-           a_t = self.computeIDS(mu_t, sigma_t, M)
+           if not self.flag:
+               if np.max(p_a) > self.threshold:
+                   self.flag = True
+                   self.optimal_arm = np.argmax(p_a)
+                   a_t = self.optimal_arm
+               else:
+                   a_t, p_a = self.computeIDS(mu_t, sigma_t, M)
+           else:
+               a_t = self.optimal_arm
            r_t, mu_t, sigma_t = self.updatePosterior(a_t, mu_t, sigma_t)
            reward[t], arm_sequence[t] = r_t, a_t
         return reward, arm_sequence
