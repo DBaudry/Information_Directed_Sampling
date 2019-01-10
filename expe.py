@@ -18,31 +18,33 @@ default_param = {
     'BayesUCB': (1, 1),
     'MOSS': 0.2,
     'ExploreCommit': 50,
-    'IDS_approx': 1000,
-    'GPUCB' : 0.99
+    'IDS_approx': 10000,
+    'GPUCB' : 0.9
 }
 
 
-def beta_bernoulli_expe(n_expe, n_arms, T, methods=['KG', 'KG2'], param=default_param,
-                        doplot=True):
-    # 'UCB_Tuned', 'Bayes_UCB', 'KG', 'TS', 'Approx_KG*', 'UCB1', 'MOSS', 'IDS_approx'
-    all_regrets = np.zeros((len(methods), n_expe, T))
+def beta_bernoulli_expe(n_expe, n_arms, n_iter, T, param=default_param, doplot=False):
+    # methods = ['UCB_Tuned', 'Bayes_UCB', 'KG', 'TS', 'Approx_KG*', 'UCB1', 'MOSS', 'IDS_approx']
+    methods = ['UCB1', 'TS', 'IDS_approx']
+    p_list = np.zeros((n_expe, n_arms))
+    all_regrets = np.zeros((len(methods), n_expe*n_iter, T))
     res = {}
     for j in tqdm(range(n_expe)):
-        p = np.random.uniform(size=n_arms)
-        my_mab = BetaBernoulliMAB(p)
-        #res['UCB1'] = my_mab.regret(my_mab.UCB1(T, rho=param['UCB1'])[0], T)
-        #res['TS'] = my_mab.regret(my_mab.TS(T)[0], T)
-        #res['UCB_Tuned'] = my_mab.regret(my_mab.UCB_Tuned(T)[0], T)
-        #res['Bayes_UCB'] = my_mab.regret(my_mab.BayesUCB(T, p1=param['BayesUCB'][0], p2=param['BayesUCB'][1])[0], T)
-        #res['MOSS'] = my_mab.regret(my_mab.MOSS(T, rho=param['MOSS'])[0], T)
-        res['KG'] = my_mab.regret(my_mab.KG(T)[0], T)
-        res['KG2'] = my_mab.regret(my_mab.KG2(T)[0], T)
-        #res['Approx_KG*'] = my_mab.regret(my_mab.Approx_KG_star(T)[0], T)
-        #res['IDS_approx'] = my_mab.regret(my_mab.IDS_approx(T, N_steps=param['IDS_approx'])[0], T)
-        for i, m in enumerate(methods):
-            all_regrets[i, j] = res[m]
-    MC_regret = all_regrets.sum(axis=1)/n_expe
+        p = np.random.uniform(low=0., high=1., size=n_arms)
+        p_list[j] = p
+        my_mab=BetaBernoulliMAB(p)
+        for k in range(n_iter):
+            res['UCB1'] = my_mab.regret(my_mab.UCB1(T, rho=param['UCB1'])[0], T)
+            res['TS'] = my_mab.regret(my_mab.TS(T)[0], T)
+            # res['UCB_Tuned'] = my_mab.regret(my_mab.UCB_Tuned(T)[0], T)
+            # res['Bayes_UCB'] = my_mab.regret(my_mab.BayesUCB(T, p1=param['BayesUCB'][0], p2=param['BayesUCB'][1])[0], T)
+            # res['MOSS'] = my_mab.regret(my_mab.MOSS(T, rho=param['MOSS'])[0], T)
+            # res['KG'] = my_mab.regret(my_mab.KG(T)[0], T)
+            # res['Approx_KG*'] = my_mab.regret(my_mab.Approx_KG_star(T)[0], T)
+            res['IDS_approx'] = my_mab.regret(my_mab.IDS_approx(T, N_steps=param['IDS_approx'])[0], T)
+            for i, m in enumerate(methods):
+                all_regrets[i, n_iter*j+k] = res[m]
+    MC_regret = all_regrets.sum(axis=1)/(n_expe*n_iter)
     if doplot:
         for i in range(len(methods)):
             plt.plot(MC_regret[i], label=methods[i])
