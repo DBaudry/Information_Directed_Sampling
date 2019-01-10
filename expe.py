@@ -19,7 +19,7 @@ default_param = {
     'MOSS': 0.2,
     'ExploreCommit': 50,
     'IDS_approx': 1000,
-    'GPUCB' : 0.9
+    'GPUCB' : 0.99
 }
 
 
@@ -194,14 +194,16 @@ def approxIntegral():
     plt.show()
 
 
-def LinearGaussianMAB(n_expe, n_features, n_arms, T, plot=True):
-    methods = ['LinUCB', 'Tuned_GPUCB', 'GPUCB', 'TS', 'BayesUCB']
-    random_state = np.random.randint(0, 42)
-    u = 1/np.sqrt(5)
-    model = PaperLinModel(u, n_features, n_arms, sigma=10, random_state=random_state); model.rewards_plot()
+def LinearGaussianMAB(n_expe, n_features, n_arms, T, plot=True, plotMAB=False):
+    methods = ['LinUCB', 'Tuned_GPUCB', 'GPUCB', 'TS', 'BayesUCB', 'IDS']
+    u = 1 / np.sqrt(5)
     regret = np.zeros((len(methods), n_expe, T))
-    lMAB = LinMAB(model)
     for n in tqdm(range(n_expe)):
+        random_state = np.random.randint(0, 312414)
+        model = PaperLinModel(u, n_features, n_arms, sigma=10, random_state=random_state)
+        if plotMAB:
+            model.rewards_plot()
+        lMAB = LinMAB(model)
         for i, m in enumerate(methods):
             alg = lMAB.__getattribute__(m)
             reward, arm_sequence = alg(T)
@@ -213,4 +215,4 @@ def LinearGaussianMAB(n_expe, n_features, n_arms, T, plot=True):
         plt.legend()
         plt.show()
 
-LinearGaussianMAB(100, 5, 30, 250)
+LinearGaussianMAB(10, 5, 25, 250)
