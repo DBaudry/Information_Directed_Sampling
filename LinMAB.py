@@ -68,16 +68,24 @@ class LinMAB():
             arm_sequence[t], reward[t] = a_t, r_t
         return reward, arm_sequence
 
+    def TS(self, T):
+        arm_sequence, reward = np.zeros(T), np.zeros(T)
+        mu_t, sigma_t = self.initPrior()
+        for t in range(T):
+            a_t = rd_argmax(np.dot(self.features, mu_t))
+            r_t, mu_t, sigma_t = self.updatePosterior(a_t, mu_t, sigma_t)
+            reward[t], arm_sequence[t] = r_t, a_t
+        return reward, arm_sequence
 
-    def initIDS(self):
+    def initPrior(self):
         mu_0 = np.zeros(self.d)
         sigma_0 = np.eye(self.d)
         return mu_0, sigma_0
 
-    def updateIDS(self, a, mu, sigma):
+    def updatePosterior(self, a, mu, sigma):
         f, r = self.features[a], self.reward(a)[0]
         s_inv = np.linalg.inv(sigma)
-        ffT = np.outer(f, f.T)
+        ffT = np.outer(f, f)
         mu_ = np.dot(np.linalg.inv(s_inv + ffT / self.eta**2), np.dot(s_inv, mu) + r * f / self.eta**2)
         sigma_ = np.linalg.inv(s_inv + ffT/self.eta**2)
         return r, mu_, sigma_
@@ -89,7 +97,6 @@ class LinMAB():
         theta_hat_ = [thetas[np.where(theta_hat==a)] for a in range(self.n_a)]
         theta_hat_card = np.array([len(theta_hat_[a]) for a in range(self.n_a)])
         p_a = theta_hat_card/M
-        print(p_a)
         #print(sum(p_a))
         mu_a = np.nan_to_num(np.array([np.mean([theta_hat_[a]], axis=1).squeeze() for a in range(self.n_a)]))
         L_hat = np.sum(np.array([p_a[a]*np.outer(mu_a[a], mu_a[a].T) for a in range(self.n_a)]), axis=0)
@@ -100,12 +107,11 @@ class LinMAB():
         return arm
 
     def IDS(self, T, M=10000):
-        mu_t, sigma_t = self.initIDS()
+        mu_t, sigma_t = self.initPrior()
         reward, arm_sequence = np.zeros(T), np.zeros(T)
         for t in range(T):
            a_t = self.computeIDS(mu_t, sigma_t, M)
-           r_t, mu_t, sigma_t = self.updateIDS(a_t, mu_t, sigma_t)
+           r_t, mu_t, sigma_t = self.updatePosterior(a_t, mu_t, sigma_t)
            reward[t], arm_sequence[t] = r_t, a_t
-        print(arm_sequence)
         return reward, arm_sequence
 
