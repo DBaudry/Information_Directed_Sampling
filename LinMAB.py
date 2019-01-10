@@ -1,12 +1,13 @@
 import numpy as np
 from utils import rd_argmax
+from scipy.stats import norm
 
 class ArmGaussianLinear(object):
     def __init__(self, random_state=0):
         self.local_random = np.random.RandomState(random_state)
 
     def reward(self, arm):
-        return np.dot(self.features[arm], self.real_theta) + self.eta * self.local_random.normal(0, 1, 1)
+        return np.dot(self.features[arm], self.real_theta) + self.local_random.normal(0, self.eta, 1)
 
     def rewards_plot(self):
         D = np.dot(self.features, self.real_theta)
@@ -43,17 +44,18 @@ class LinMAB():
         self.reward = model.reward
         self.eta = model.eta
 
+    def TS(self, T):
+        arm_sequence, reward = np.zeros(T), np.zeros(T)
+        mu_t, sigma_t = self.initPrior()
+        for t in range(T):
+            theta_t = np.random.multivariate_normal(mu_t, sigma_t, 1).T
+            a_t = rd_argmax(np.dot(self.features, theta_t))
+            r_t, mu_t, sigma_t = self.updatePosterior(a_t, mu_t, sigma_t)
+            reward[t], arm_sequence[t] = r_t, a_t
+        return reward, arm_sequence
+
 
     def LinUCB(self, T, lbda=10e-4, alpha=10e-1):
-        ''' Implements 'LinearUCB'
-
-        :param T: int
-            Time horizon
-        :param lbda: float
-            Penalization parameter in lasso regression
-        :param alpha: float
-            Parameter to adjust in the expression of beta for LinearUCB
-        '''
         arm_sequence, reward = np.zeros(T), np.zeros(T)
         a_t, A_t, b_t = np.random.randint(0, self.n_a - 1, 1)[0], lbda * np.eye(self.d), np.zeros(self.d)
         r_t = self.reward(a_t)
@@ -63,16 +65,41 @@ class LinMAB():
             inv_A = np.linalg.inv(A_t)
             theta_t = np.dot(inv_A, b_t)
             beta_t = alpha * np.sqrt(np.diagonal(np.dot(np.dot(self.features, inv_A), self.features.T)))
-            a_t = np.argmax(np.dot(self.features, theta_t) + beta_t)
+            a_t = rd_argmax(np.dot(self.features, theta_t) + beta_t)
             r_t = self.reward(a_t)
             arm_sequence[t], reward[t] = a_t, r_t
         return reward, arm_sequence
 
-    def TS(self, T):
+    def BayesUCB(self, T):
         arm_sequence, reward = np.zeros(T), np.zeros(T)
         mu_t, sigma_t = self.initPrior()
         for t in range(T):
-            a_t = rd_argmax(np.dot(self.features, mu_t))
+            a_t = rd_argmax(np.dot(self.features, mu_t) + norm.ppf(t/(t+1)) *
+                            np.sqrt(np.diagonal(np.dot(np.dot(self.features, sigma_t), self.features.T))))
+            r_t, mu_t, sigma_t = self.updatePosterior(a_t, mu_t, sigma_t)
+            reward[t], arm_sequence[t] = r_t, a_t
+        return reward, arm_sequence
+
+
+    def GPUCB(self, T):
+        arm_sequence, reward = np.zeros(T), np.zeros(T)
+        mu_t, sigma_t = self.initPrior()
+        for t in range(T):
+            beta_t = 2 * np.log(self.n_a * ((t+1)*np.pi)**2 / 6 / 0.1)
+            a_t = rd_argmax(np.dot(self.features, mu_t) +
+                            np.sqrt(beta_t * np.diagonal(np.dot(np.dot(self.features, sigma_t), self.features.T))))
+            r_t, mu_t, sigma_t = self.updatePosterior(a_t, mu_t, sigma_t)
+            reward[t], arm_sequence[t] = r_t, a_t
+        return reward, arm_sequence
+
+    def Tuned_GPUCB(self, T, c=3.9):
+        arm_sequence, reward = np.zeros(T), np.zeros(T)
+        mu_t, sigma_t = self.initPrior()
+        for t in range(T):
+            beta_t = c * np.log(t+1)
+            #print(np.sqrt(beta_t), norm.ppf(t/(t+1)))
+            a_t = rd_argmax(np.dot(self.features, mu_t) +
+                            np.sqrt(beta_t*np.diagonal(np.dot(np.dot(self.features, sigma_t), self.features.T))))
             r_t, mu_t, sigma_t = self.updatePosterior(a_t, mu_t, sigma_t)
             reward[t], arm_sequence[t] = r_t, a_t
         return reward, arm_sequence
@@ -97,7 +124,6 @@ class LinMAB():
         theta_hat_ = [thetas[np.where(theta_hat==a)] for a in range(self.n_a)]
         theta_hat_card = np.array([len(theta_hat_[a]) for a in range(self.n_a)])
         p_a = theta_hat_card/M
-        #print(sum(p_a))
         mu_a = np.nan_to_num(np.array([np.mean([theta_hat_[a]], axis=1).squeeze() for a in range(self.n_a)]))
         L_hat = np.sum(np.array([p_a[a]*np.outer(mu_a[a], mu_a[a].T) for a in range(self.n_a)]), axis=0)
         rho_star = np.sum(np.array([p_a[a]*np.dot(self.features[a], mu_a[a]) for a in range(self.n_a)]), axis=0)

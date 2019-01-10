@@ -197,8 +197,8 @@ def approxIntegral():
 
 
 def LinearGaussianMAB(n_expe, n_features, n_arms, T, plot=True):
-    methods = ['LinUCB', 'IDS', 'TS']
-    random_state = 24 #np.random.randint(0, 42)
+    methods = ['LinUCB', 'Tuned_GPUCB', 'GPUCB', 'TS', 'BayesUCB']
+    random_state = np.random.randint(0, 42)
     u = 1/np.sqrt(5)
     model = PaperLinModel(u, n_features, n_arms, sigma=10, random_state=random_state); model.rewards_plot()
     regret = np.zeros((len(methods), n_expe, T))
@@ -215,4 +215,4 @@ def LinearGaussianMAB(n_expe, n_features, n_arms, T, plot=True):
         plt.legend()
         plt.show()
 
-LinearGaussianMAB(10, 5, 30, 250)
+LinearGaussianMAB(100, 5, 30, 250)
