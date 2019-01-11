@@ -126,9 +126,8 @@ def sanity_check_expe():
 
 ##### Gaussian test ######
 
-def check_gaussian(n_expe, n_arms, T, methods=['TS', 'UCB1', 'GPUCB', 'Tuned_GPUCB', 'BayesUCB', 'KG', 'KG*'], param=default_param,
-                   doplot=False):
-    #
+def check_gaussian(n_expe, n_arms, T, param=default_param,doplot=False):
+    methods = ['TS', 'UCB1', 'IDS_approx']
     all_regrets = np.zeros((len(methods), n_expe, T))
     res = {}
     for j in tqdm(range(n_expe)):
@@ -139,13 +138,13 @@ def check_gaussian(n_expe, n_arms, T, methods=['TS', 'UCB1', 'GPUCB', 'Tuned_GPU
             p.append([mu[i], sigma[i]])
         my_mab = GaussianMAB(p)
         res['TS'] = my_mab.regret(my_mab.TS(T)[0], T)
-        res['BayesUCB'] = my_mab.regret(my_mab.BayesUCB(T, p1=param['BayesUCB'][0], p2=param['BayesUCB'][0])[0], T)
+        # res['BayesUCB'] = my_mab.regret(my_mab.BayesUCB(T, p1=param['BayesUCB'][0], p2=param['BayesUCB'][0])[0], T)
         res['UCB1'] = my_mab.regret(my_mab.UCB1(T, rho=param['UCB1'])[0], T)
-        res['GPUCB'] = my_mab.regret(my_mab.GPUCB(T)[0], T)
-        res['Tuned_GPUCB'] = my_mab.regret(my_mab.Tuned_GPUCB(T, c = param['GPUCB'])[0], T)
-        res['KG'] = my_mab.regret(my_mab.KG(T)[0], T)
-        res['KG*'] = my_mab.regret(my_mab.KG_star(T)[0], T)
-        #res['IDS_approx'] = my_mab.regret(my_mab.IDS_approx(T, N_steps=param['IDS_approx'])[0], T)
+        # res['GPUCB'] = my_mab.regret(my_mab.GPUCB(T)[0], T)
+        # res['Tuned_GPUCB'] = my_mab.regret(my_mab.Tuned_GPUCB(T, c = param['GPUCB'])[0], T)
+        # res['KG'] = my_mab.regret(my_mab.KG(T)[0], T)
+        # res['KG*'] = my_mab.regret(my_mab.KG_star(T)[0], T)
+        res['IDS_approx'] = my_mab.regret(my_mab.IDS_approx(T, N_steps=param['IDS_approx'])[0], T)
         #res['IDS'] = my_mab.regret(my_mab.IDS(T)[0], T)
         for i, m in enumerate(methods):
             all_regrets[i, j] = res[m]
