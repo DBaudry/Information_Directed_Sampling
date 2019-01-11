@@ -128,6 +128,7 @@ def sanity_check_expe():
 
 ##### Gaussian test ######
 
+
 def check_gaussian(n_expe, n_arms, T, methods=['TS', 'KG*', 'IDS_approx'], param=default_param,
                    doplot=True):
     # 'UCB1', 'GPUCB', 'Tuned_GPUCB', 'BayesUCB', 'KG', 'KG*'
