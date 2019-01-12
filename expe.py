@@ -11,20 +11,31 @@ import matplotlib.pyplot as plt
 from scipy.stats import norm
 from tqdm import tqdm
 from copy import copy
+import inspect
+
 
 np.random.seed(42)
 
-default_param = {
-    'UCB1': 0.2,
-    'BayesUCB': (1, 1),
-    'MOSS': 0.2,
-    'ExploreCommit': 50,
-    'IDS_approx': 10000,
-    'GPUCB' : 0.9
+param = {
+    'UCB1': {'rho':0.2},
+    'BayesUCB': {'p1':1, 'p2':1, 'c':0},
+    'MOSS': {'rho':0.2},
+    'ExploreCommit': {'m':50},
+    'IDS_approx': {'N_steps':1000, 'display_results':False},
+    'Tuned_GPUCB' : {'c':0.9},
 }
 
+def plotRegret(methods, mean_regret, title):
+    for i in range(len(methods)):
+        plt.plot(mean_regret[i], label=methods[i])
+    plt.title(title)
+    plt.ylabel('Cumulative regret')
+    plt.xlabel('Time period')
+    plt.legend()
+    plt.show()
 
-def beta_bernoulli_expe(n_expe, n_arms, n_iter, T, b1, b2, param=default_param, doplot=False):
+    
+def beta_bernoulli_expe_DB(n_expe, n_arms, n_iter, T, b1, b2, param=default_param, doplot=False):
     # methods = ['UCB_Tuned', 'Bayes_UCB', 'KG', 'TS', 'Approx_KG*', 'UCB1', 'MOSS', 'IDS_approx']
     methods = ['UCB1', 'TS', 'IDS_approx']
     p_list = np.zeros((n_expe, n_arms))
@@ -49,14 +60,23 @@ def beta_bernoulli_expe(n_expe, n_arms, n_iter, T, b1, b2, param=default_param, 
             for i, m in enumerate(methods):
                 all_regrets[i, n_iter*j+k] = res[m]
     MC_regret = all_regrets.sum(axis=1)/(n_expe*n_iter)
+    
+    
+def beta_bernoulli_expe(n_expe, n_arms, T, doplot=True):
+    methods = ['UCB1', 'TS', 'UCB_Tuned', 'BayesUCB', 'KG', 'Approx_KG_star', 'MOSS', 'IDS_approx']
+    all_regrets = np.zeros((len(methods), n_expe, T))
+    for j in tqdm(range(n_expe)):
+        p = np.random.uniform(size=n_arms)
+        my_mab = BetaBernoulliMAB(p)
+        for i, m in enumerate(methods):
+            alg = my_mab.__getattribute__(m)
+            args = inspect.getfullargspec(alg)[0][2:]
+            args = [T]+[param[m][i] for i in args]
+            all_regrets[i, j] = my_mab.regret(alg(*args)[0], T)
+    mean_regret = all_regrets.mean(axis=1)
     if doplot:
-        for i in range(len(methods)):
-            plt.plot(MC_regret[i], label=methods[i])
-        plt.ylabel('Cumulative Regret')
-        plt.xlabel('Rounds')
-        plt.legend()
-        plt.show()
-    return MC_regret
+        plotRegret(methods, mean_regret, 'Binary rewards')
+    return mean_regret
 
 
 def build_finite(L, K, N):
@@ -132,76 +152,26 @@ def sanity_check_expe():
 
 ##### Gaussian test ######
 
-
-def check_gaussian(n_expe, n_arms, T, methods=['TS', 'KG*', 'IDS_approx'], param=default_param,
-                   doplot=True):
-    # 'UCB1', 'GPUCB', 'Tuned_GPUCB', 'BayesUCB', 'KG', 'KG*'
+def check_gaussian(n_expe, n_arms, T, doplot=True):
+    methods = ['UCB1', 'GPUCB', 'Tuned_GPUCB', 'BayesUCB', 'KG', 'KG_star', 'IDS_approx']
     all_regrets = np.zeros((len(methods), n_expe, T))
-    res = {}
     for j in tqdm(range(n_expe)):
-        mu = np.random.normal(0, 1, n_arms)
-        sigma = [1] * len(mu)
-        #print(mu, sigma)
-        p = []
+        mu, sigma, p = np.random.normal(0, 1, n_arms), np.ones(n_arms), []
         for i in range(len(mu)):
             p.append([mu[i], sigma[i]])
         my_mab = GaussianMAB(p)
-        res['TS'] = my_mab.regret(my_mab.TS(T)[0], T)
-        #res['BayesUCB'] = my_mab.regret(my_mab.BayesUCB(T, p1=param['BayesUCB'][0], p2=param['BayesUCB'][0])[0], T)
-        #res['UCB1'] = my_mab.regret(my_mab.UCB1(T, rho=param['UCB1'])[0], T)
-        #res['GPUCB'] = my_mab.regret(my_mab.GPUCB(T)[0], T)
-        #res['Tuned_GPUCB'] = my_mab.regret(my_mab.Tuned_GPUCB(T, c = param['GPUCB'])[0], T)
-        #res['KG'] = my_mab.regret(my_mab.KG(T)[0], T)
-        res['KG*'] = my_mab.regret(my_mab.KG_star(T)[0], T)
-        #res['IDS'] = my_mab.regret(my_mab.IDS(T)[0], T)
-        res['IDS_approx'] = my_mab.regret(my_mab.IDS_approx(T, N_steps=param['IDS_approx'])[0], T)
-        #res['IDS'] = my_mab.regret(my_mab.IDS(T)[0], T)
         for i, m in enumerate(methods):
-            all_regrets[i, j] = res[m]
-    MC_regret = all_regrets.sum(axis=1)/n_expe
+            alg = my_mab.__getattribute__(m)
+            args = inspect.getfullargspec(alg)[0][2:]
+            args = [T]+[param[m][i] for i in args]
+            all_regrets[i, j] = my_mab.regret(alg(*args)[0], T)
+    mean_regret = all_regrets.mean(axis=1)
     if doplot:
-        for i in range(len(methods)):
-            plt.plot(MC_regret[i], label=methods[i])
-        plt.ylabel('Cumulative Regret')
-        plt.xlabel('Rounds')
-        plt.legend()
-        plt.show()
-    return MC_regret
-
-def approxIntegral():
-    mu = np.random.uniform(-100, 100, 9)
-    sigma = np.random.uniform(0, 100, 9)
-    nb_arms = 9
-
-    def joint_cdf(x):
-        result = 1.
-        for a in range(nb_arms):
-            result = result * norm.cdf(x, mu[a], sigma[a])
-        return result
-
-    def dp_star(x, a):
-        return joint_cdf(x) / norm.cdf(x, mu[a], sigma[a])*norm.pdf(x, mu[a], sigma[a])
-
-    Y, X = [[] for _ in range(nb_arms)], [[] for _ in range(nb_arms)]
-    for a in tqdm(range(nb_arms), desc='Computing dp_star for all actions'):
-        x_sup = np.max([np.max(mu)+3*np.max(sigma), mu[a]+3*sigma[a]])
-        x_inf = np.min([np.min(mu)-3*np.max(sigma), mu[a]-3*sigma[a]])
-        X0 = np.linspace(x_sup, x_inf, 100)
-        Y0 = np.array([dp_star(x, a) for x in X0])
-        I_a = np.arange(100) if np.max(Y0) < 10e-10 else np.where(Y0 >= 10e-10)
-        X1 = np.linspace(X0[I_a][0], X0[I_a][-1], 1000)
-        Y[a] = np.array([dp_star(x, a) for x in X1])
-        X[a] = X1
-
-    plt.figure(1)
-    for a in range(nb_arms):
-        plt.subplot(3, 3, a+1)
-        plt.plot(X[a], Y[a], label='action '+str(a))
-        plt.legend()
-    plt.show()
+        plotRegret(methods, mean_regret, 'Gaussian rewards')
+    return mean_regret
 
 
-def LinearGaussianMAB(n_expe, n_features, n_arms, T, plot=True, plotMAB=False):
+def LinearGaussianMAB(n_expe, n_features, n_arms, T, doplot=True, plotMAB=True):
     methods = ['LinUCB', 'Tuned_GPUCB', 'GPUCB', 'TS', 'BayesUCB', 'IDS']
     u = 1 / np.sqrt(5)
     regret = np.zeros((len(methods), n_expe, T))
@@ -216,8 +186,6 @@ def LinearGaussianMAB(n_expe, n_features, n_arms, T, plot=True, plotMAB=False):
             reward, arm_sequence = alg(T)
             regret[i, n, :] = model.best_arm_reward() - reward
     mean_regret = [np.array([np.mean(regret[i, :, t]) for t in range(T)]).cumsum() for i in range(len(methods))]
-    if plot:
-        for i, m in enumerate(methods):
-            plt.plot(mean_regret[i], label=m)
-        plt.legend()
-        plt.show()
+    if doplot:
+        plotRegret(methods, mean_regret, 'Linear-Gaussian Model')
+    return mean_regret

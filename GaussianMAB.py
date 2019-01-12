@@ -310,8 +310,8 @@ class GaussianMAB(GenericMAB):
             eta = self.MAB[arm].eta
             mu[arm] = (eta ** 2 * mu[arm] + reward[t] * sigma[arm] ** 2) / (eta ** 2 + sigma[arm] ** 2)
             sigma[arm] = np.sqrt((eta * sigma[arm]) ** 2 / (eta ** 2 + sigma[arm] ** 2))
-            print('mu : {}, \n sigma : {}'.format(mu, sigma))
+            #print('mu : {}, \n sigma : {}'.format(mu, sigma))
             f, F = self.update_approx(arm, mu[arm], sigma[arm], X, f, F)
-            print(p_star, delta, v, -delta**2/v)
-        print(arm_sequence)
+            #print(p_star, delta, v, -delta**2/v)
+        #print(arm_sequence)
         return reward, arm_sequence
