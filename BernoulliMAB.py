@@ -1,4 +1,5 @@
 from MAB import *
+from copy import copy
 
 
 class BetaBernoulliMAB(GenericMAB):
@@ -58,69 +59,6 @@ class BetaBernoulliMAB(GenericMAB):
             self.update_lists(t, arm, Sa, Na, reward, arm_sequence)
         return reward, arm_sequence
 
-    def IR(self, b1, b2):
-        """
-        Implementation of the Information Ratio for bernoulli bandits with beta prior
-        :param b1: np.array, first parameter of the beta distribution for each arm
-        :param b2: np.array, second parameter of the beta distribution for each arm
-        :return: the two components of the Information ration delta and g
-        """
-        assert type(b1) == np.ndarray, "b1 type should be an np.array"
-        assert type(b2) == np.ndarray, "b2 type should be an np.array"
-
-        def joint_cdf(x):
-            result = 1.
-            for i in range(self.nb_arms):
-                result *= beta.cdf(x, b1[i], b2[i])
-            return result
-
-        def G(x, a):
-            return b1[a]/(b1[a]+b2[a])*beta.cdf(x, b1[a]+1, b2[a])
-
-        def dp_star(x, a):
-            return beta.pdf(x, b1[a], b2[a])*joint_cdf(x)/beta.cdf(x, b1[a], b2[a])
-
-        def p_star(a):
-            return integrate.quad(lambda x: dp_star(x, a), 0., 1., epsabs=1e-2)[0]  # return a tuple (value, UB error)
-
-        def MAA(a, p):
-            return integrate.quad(lambda x: x*dp_star(x, a), 0., 1., epsabs=1e-2)[0]/p[a]
-
-        def MAAP(ap, a, p):
-            return integrate.quad(lambda x: dp_star(x, a)*G(x, ap)/beta.cdf(x, b1[ap], b2[ap]), 0., 1., epsabs=1e-2)[0]\
-                   / p[a]
-
-        def g(a, p, M, ma_value):
-            gp = p*(M[a]*np.log(M[a]*(b1+b2)/b1)+(1-M[a])*np.log((1-M[a])*(b1+b2)/b2))
-            gp[a] = ma_value
-            return gp.sum()
-
-        ps = np.array([p_star(a) for a in range(self.nb_arms)])
-        ma = np.array([MAA(a, ps) for a in range(self.nb_arms)])
-        maap = np.array([[MAAP(a, ap, ps) for ap in range(self.nb_arms)] for a in range(self.nb_arms)])
-        np.fill_diagonal(maap, 0, wrap=False)
-        rho = (ps*ma).sum()
-        delta = rho-b1/(b1+b2)
-        g = np.array([g(a, ps, maap, ma[a]) for a in range(self.nb_arms)])
-        return delta, g
-
-    def IDS(self, T):
-        """
-        Implementation of the Information Directed Sampling for Beta-Bernoulli bandits
-        :param T: number of rounds
-        :return: Reward obtained by the policy and sequence of chosen arms
-        """
-        Sa, Na, reward, arm_sequence = self.init_lists(T)
-        beta_1 = np.ones(self.nb_arms)
-        beta_2 = np.ones(self.nb_arms)
-        for t in range(T):
-            delta, g = self.IR(beta_1, beta_2)
-            arm = self.IDSAction(delta, g)
-            self.update_lists(t, arm, Sa, Na, reward, arm_sequence)
-            beta_1[arm] += reward[t]
-            beta_2[arm] += 1-reward[t]
-        return reward, arm_sequence
-
     def IR_approx(self, N, b1, b2, X, f, F, G):
         """
         Implementation of the Information Ratio for bernoulli bandits with beta prior
@@ -162,17 +100,27 @@ class BetaBernoulliMAB(GenericMAB):
             g[arm] = np.inner(p_star, sum_log)
         return delta, g, p_star, maap
 
-    def init_approx(self, N):
+    @staticmethod
+    def fact_list(count):
+        l = np.ones(int(count)+1) # add 1 for safety
+        for i in range(int(count)):
+            l[i+1] = (i+1)*l[i]
+        return l
+
+    def init_approx(self, N, beta_1, beta_2):
         """
         :param N: number of points to take in the [0,1] interval
+        :param beta_1: prior on alpha for each arm
+        :param beta_2: prior on beta for each arm
         :return: Initialisation of the arrays for the approximation of the integrals in IDS
         The initialization is made for uniform prior (equivalent to beta(1,1))
         """
+        fact = self.fact_list((beta_1+beta_2).max())
+        B = fact[beta_1-1]*fact[beta_2-1]/fact[beta_1+beta_2-1]
         X = np.linspace(1/N, 1., N)
-        f = np.ones((self.nb_arms, N))
-        F = np.repeat(X, self.nb_arms, axis=0).reshape((N, self.nb_arms)).T
-        G = F**2/2
-        B = np.ones(self.nb_arms)
+        f = np.array([X**(beta_1[i]-1)*(1.-X)**(beta_2[i]-1)/B[i] for i in range(self.nb_arms)])
+        F = (f/N).cumsum(axis=1)
+        G = (f*X/N).cumsum(axis=1)
         return X, f, F, G, B
 
     def update_approx(self, arm, y, beta, X, f, F, G, B):
@@ -189,16 +137,15 @@ class BetaBernoulliMAB(GenericMAB):
         B[arm] = B[arm]*adjust/beta.sum()
         return f, F, G, B
 
-    def IDS_approx(self, T, N_steps, display_results = False):
+    def IDS_approx(self, T, N_steps, beta1, beta2, display_results = False):
         """
         Implementation of the Information Directed Sampling with approximation of integrals
         :param T: number of rounds
         :return: Reward obtained by the policy and sequence of chosen arms
         """
+        beta1, beta2 = copy(beta1), copy(beta2)
         Sa, Na, reward, arm_sequence = self.init_lists(T)
-        X, f, F, G, B = self.init_approx(N_steps)
-        beta_1 = np.ones(self.nb_arms)
-        beta_2 = np.ones(self.nb_arms)
+        X, f, F, G, B = self.init_approx(N_steps, beta1, beta2)
         p_star = np.zeros(self.nb_arms)
         for t in range(T):
             if not self.flag:
@@ -207,29 +154,24 @@ class BetaBernoulliMAB(GenericMAB):
                     self.optimal_arm = np.argmax(p_star)
                     arm = self.optimal_arm
                 else:
-                    delta, g, p_star, maap = self.IR_approx(N_steps, beta_1, beta_2, X, f, F, G)
-                    # arm = rd_argmax(-delta**2/g)
+                    delta, g, p_star, maap = self.IR_approx(N_steps, beta1, beta2, X, f, F, G)
                     arm = self.IDSAction(delta, g)
-                    # print('chosen arm: {}'.format(arm))
-                    # print('IDS action : {}'.format(self.IDSAction0(delta, g)))
             else:
                 arm = self.optimal_arm
             self.update_lists(t, arm, Sa, Na, reward, arm_sequence)
-            prev_beta = np.array([copy.copy(beta_1[arm]), copy.copy(beta_2[arm])])
-            beta_1[arm] += reward[t]
-            beta_2[arm] += 1-reward[t]
-            # print(t)
-            # print(Sa/Na)
-            # print(Na)
-            # print(delta)
-            # print(g)
-            # print('ratio : {}'.format(delta**2/g))
-            # print(p_star)
-            # print(maap)
+            prev_beta = np.array([copy(beta1[arm]), copy(beta2[arm])])
+            beta1[arm] += reward[t]
+            beta2[arm] += 1-reward[t]
+            if display_results:
+                print(t)
+                print('delta {}'.format(delta))
+                print('g {}'.format(g))
+                print('ratio : {}'.format(delta**2/g))
+                print('p_star {}'.format(p_star))
+                print('maap {}'.format(maap))
+                print(arm, Na)
+                print('mean {}'.format(Sa/Na))
             f, F, G, B = self.update_approx(arm, reward[t], prev_beta, X, f, F, G, B)
-        if display_results:
-            res = {'delta': delta, 'g': g, 'p_star': p_star, 'maap': maap }
-            print(res)
         return reward, arm_sequence
 
 
