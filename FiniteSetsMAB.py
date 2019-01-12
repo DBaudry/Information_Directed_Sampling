@@ -103,19 +103,12 @@ class FiniteSets(GenericMAB):
                 if pa[a_star] > 0.00001:
                     for y in range(self.N):
                         g[a] += joint[a, a_star, y] * np.log(joint[a, a_star, y] / (pa[a_star] * py[a, y]))
-                    # print('a:', a, 'y:', y, 'a_star:', a_star)
-                    # print('joint[a, a_star, y]:', joint[a, a_star, y])
-                    # print('pa[a_star]', pa[a_star])
-                    # print('py[a, y]', py[a, y])
         return g
 
     def IR(self):
         pa = self.get_pa_star()
         py = self.get_py()
         joint = self.get_joint_ay()
-        # print('joint dans IR:', joint)
-        print('pa dans IR: ', pa)
-        print('py dans IR: ', py)
         R_star = self.get_R_star(joint)
         delta = np.zeros(self.nb_arms) + R_star - self.get_R(py)
         g = self.get_g(joint, pa, py)
@@ -138,8 +131,6 @@ class FiniteSets(GenericMAB):
             if not self.flag:
                 delta, g = self.IR()
                 arm = self.IDSAction(delta, g)
-                print('delta:', delta, 'T: ', t)
-                print('g:', g)
             else:
                 arm = self.optimal_arm
             self.update_lists(t, arm, Sa, Na, Y, arm_sequence)
