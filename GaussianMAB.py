@@ -5,25 +5,17 @@ class GaussianMAB(GenericMAB):
     """
 
     """
-    def __init__(self, p):
+    def __init__(self, p, s=10):
         super().__init__(method=['G']*len(p), param=p)
         self.flag = False
         self.optimal_arm = None
         self.threshold = 0.99
+        self.s = s
 
-    @staticmethod
-    def kl(x, y):
-        """
-        Implementation of the Kullback-Leibler divergence
-        """
-        return x * np.log(x/y) + (1-x) * np.log((1-x)/(1-y))
-
-    def kl_inf(self, x, y):
-        """
-        Implementation of the Kullback-Leibler divergence introduced by Burnetas and Katehakis (1996) for
-        non-binary rewards in [0,1]
-        """
-        return np.min([self.kl(x, z) for z in self.means if z > y])
+    def init_prior(self):
+        ''' Init prior for Gaussian prior '''
+        mu, sigma = np.zeros(self.nb_arms), self.s * np.ones(self.nb_arms)
+        return mu, sigma
 
     def TS(self, T):
         """
@@ -120,8 +112,7 @@ class GaussianMAB(GenericMAB):
         :return: Reward obtained by the policy and sequence of the arms chosen
         """
         Sa, Na, reward, arm_sequence = self.init_lists(T)
-        mu = np.zeros(self.nb_arms)
-        sigma = np.ones(self.nb_arms)
+        mu, sigma = self.init_prior()
         eta = np.array([self.MAB[arm].eta for arm in range(self.nb_arms)])
         for t in range(T):
             delta_t = np.array(
@@ -137,8 +128,7 @@ class GaussianMAB(GenericMAB):
 
     def KG_star(self, T):
         Sa, Na, reward, arm_sequence = self.init_lists(T)
-        mu = np.zeros(self.nb_arms)
-        sigma = np.ones(self.nb_arms)
+        mu, sigma = self.init_prior()
         eta = np.array([self.MAB[arm].eta for arm in range(self.nb_arms)])
         for t in range(T):
             delta_t = np.array(
@@ -217,8 +207,7 @@ class GaussianMAB(GenericMAB):
         :return: Reward obtained by the policy and sequence of chosen arms
         """
         Sa, Na, reward, arm_sequence = self.init_lists(T)
-        mu = np.zeros(self.nb_arms)
-        sigma = np.ones(self.nb_arms)
+        mu, sigma = self.init_prior()
         for t in range(T):
             delta, v = self.IR(mu, sigma)
             arm = rd_argmax(-delta**2/v)
@@ -263,6 +252,7 @@ class GaussianMAB(GenericMAB):
             v[arm] = np.inner(p_star, (maap[arm]-mu[arm])**2)
         return delta, v, p_star, maap
 
+
     def init_approx(self, N):
         """
         :param N: number of points to take in the [0,1] interval
@@ -292,7 +282,7 @@ class GaussianMAB(GenericMAB):
         """
         Sa, Na, reward, arm_sequence = self.init_lists(T)
         X, f, F = self.init_approx(N_steps)
-        mu, sigma = np.zeros(self.nb_arms), np.ones(self.nb_arms)
+        mu, sigma = self.init_prior()
         p_star = np.zeros(self.nb_arms)
         for t in range(T):
             if not self.flag:
