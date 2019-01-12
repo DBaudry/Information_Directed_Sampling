@@ -34,8 +34,7 @@ def plotRegret(methods, mean_regret, title):
     plt.show()
 
 
-def beta_bernoulli_expe(n_expe, n_arms, T, doplot=True):
-    methods = ['UCB1', 'TS', 'UCB_Tuned', 'BayesUCB', 'KG', 'Approx_KG_star', 'MOSS', 'IDS_approx']
+def beta_bernoulli_expe(n_expe, n_arms, T, methods, param_dic, doplot=True):
     all_regrets, final_regrets = np.zeros((len(methods), n_expe, T)), np.zeros((len(methods), n_expe))
     q, quantiles, means, std = np.linspace(0,1,21), {}, {}, {}
     for j in tqdm(range(n_expe)):
@@ -44,7 +43,7 @@ def beta_bernoulli_expe(n_expe, n_arms, T, doplot=True):
         for i, m in enumerate(methods):
             alg = my_mab.__getattribute__(m)
             args = inspect.getfullargspec(alg)[0][2:]
-            args = [T]+[param[m][i] for i in args]
+            args = [T]+[param_dic[m][i] for i in args]
             all_regrets[i, j] = my_mab.regret(alg(*args)[0], T)
     for j, m in enumerate(methods):
         for i in range(n_expe):

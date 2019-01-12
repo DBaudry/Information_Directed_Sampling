@@ -20,9 +20,9 @@ bernoulli_methods = ['UCB1', 'TS', 'IDS_approx']
 np.random.seed(1234)
 
 check_Finite = False
-check_Bernoulli = False
+check_Bernoulli = True
 check_Gaussian = False
-check_linear = True
+check_linear = False
 check_single_expe = False
 if __name__ == '__main__':
     if check_Finite:
@@ -41,7 +41,7 @@ if __name__ == '__main__':
         exp.check_gaussian(n_expe=20, n_arms=10, T=400, doplot=True)
 
     if check_linear:
-        exp.LinearGaussianMAB(n_expe=100, n_features=10, n_arms=10, T=500)
+        exp.check_linearGaussianMAB(n_expe=100, n_features=10, n_arms=10, T=500)
 
     if check_single_expe:
         beta_1 = (np.ones(10)*10).astype(int)
