@@ -36,7 +36,8 @@ def plotRegret(methods, mean_regret, title):
 
 def beta_bernoulli_expe(n_expe, n_arms, T, doplot=True):
     methods = ['UCB1', 'TS', 'UCB_Tuned', 'BayesUCB', 'KG', 'Approx_KG_star', 'MOSS', 'IDS_approx']
-    all_regrets = np.zeros((len(methods), n_expe, T))
+    all_regrets, final_regrets = np.zeros((len(methods), n_expe, T)), np.zeros((len(methods), n_expe))
+    q, quantiles, means, std = np.linspace(0,1,21), {}, {}, {}
     for j in tqdm(range(n_expe)):
         p = np.random.uniform(size=n_arms)
         my_mab = BetaBernoulliMAB(p)
@@ -45,10 +46,14 @@ def beta_bernoulli_expe(n_expe, n_arms, T, doplot=True):
             args = inspect.getfullargspec(alg)[0][2:]
             args = [T]+[param[m][i] for i in args]
             all_regrets[i, j] = my_mab.regret(alg(*args)[0], T)
+    for j, m in enumerate(methods):
+        for i in range(n_expe):
+            final_regrets[j, i] = all_regrets[j, i, -1]
+            quantiles[m], means[m], std[m] = np.quantile(final_regrets[j, :], q), final_regrets[j,:].mean(), final_regrets[j, :].std()
     mean_regret = all_regrets.mean(axis=1)
     if doplot:
-        plotRegret(methods, mean_regret, 'Binary rewards')
-    return mean_regret
+        plotRegret(methods, mean_regret, 'Gaussian rewards')
+    return {'all_regrets': all_regrets, 'quantiles': quantiles, 'means': means, 'std': std}
 
 
 def build_finite(L, K, N):
