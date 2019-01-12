@@ -154,7 +154,7 @@ class BetaBernoulliMAB(GenericMAB):
             g[arm] = np.inner(p_star, sum_log)
         return delta, g, p_star, maap
 
-    def init_approx(self, N):
+    def init_approx0(self, N):
         """
         :param N: number of points to take in the [0,1] interval
         :return: Initialisation of the arrays for the approximation of the integrals in IDS
@@ -165,6 +165,27 @@ class BetaBernoulliMAB(GenericMAB):
         F = np.repeat(X, self.nb_arms, axis=0).reshape((N, self.nb_arms)).T
         G = F**2/2
         B = np.ones(self.nb_arms)
+        return X, f, F, G, B
+
+    @staticmethod
+    def fact_list(count):
+        l = np.ones(int(count)+1) # add 1 for safety
+        for i in range(int(count)):
+            l[i+1] = (i+1)*l[i]
+        return l
+
+    def init_approx(self, N, beta_1, beta_2):
+        """
+        :param N: number of points to take in the [0,1] interval
+        :return: Initialisation of the arrays for the approximation of the integrals in IDS
+        The initialization is made for uniform prior (equivalent to beta(1,1))
+        """
+        fact = self.fact_list((beta_1+beta_2).max())
+        B = fact[beta_1-1]*fact[beta_2-1]/fact[beta_1+beta_2-1]
+        X = np.linspace(1/N, 1., N)
+        f = np.array([X**(beta_1[i]-1)*(1.-X)**(beta_2[i]-1)/B[i] for i in range(self.nb_arms)])
+        F = (f/N).cumsum(axis=1)
+        G = (f*X/N).cumsum(axis=1)
         return X, f, F, G, B
 
     def update_approx(self, arm, y, beta, X, f, F, G, B):
@@ -181,16 +202,14 @@ class BetaBernoulliMAB(GenericMAB):
         B[arm] = B[arm]*adjust/beta.sum()
         return f, F, G, B
 
-    def IDS_approx(self, T, N_steps, display_results = False):
+    def IDS_approx(self, T, N_steps, beta1, beta2, display_results = False):
         """
         Implementation of the Information Directed Sampling with approximation of integrals
         :param T: number of rounds
         :return: Reward obtained by the policy and sequence of chosen arms
         """
         Sa, Na, reward, arm_sequence = self.init_lists(T)
-        X, f, F, G, B = self.init_approx(N_steps)
-        beta_1 = np.ones(self.nb_arms)
-        beta_2 = np.ones(self.nb_arms)
+        X, f, F, G, B = self.init_approx(N_steps, beta1, beta2)
         p_star = np.zeros(self.nb_arms)
         for t in range(T):
             if not self.flag:
@@ -199,29 +218,24 @@ class BetaBernoulliMAB(GenericMAB):
                     self.optimal_arm = np.argmax(p_star)
                     arm = self.optimal_arm
                 else:
-                    delta, g, p_star, maap = self.IR_approx(N_steps, beta_1, beta_2, X, f, F, G)
-                    # arm = rd_argmax(-delta**2/g)
+                    delta, g, p_star, maap = self.IR_approx(N_steps, beta1, beta2, X, f, F, G)
                     arm = self.IDSAction(delta, g)
-                    # print('chosen arm: {}'.format(arm))
-                    # print('IDS action : {}'.format(self.IDSAction0(delta, g)))
             else:
                 arm = self.optimal_arm
             self.update_lists(t, arm, Sa, Na, reward, arm_sequence)
-            prev_beta = np.array([copy.copy(beta_1[arm]), copy.copy(beta_2[arm])])
-            beta_1[arm] += reward[t]
-            beta_2[arm] += 1-reward[t]
-            # print(t)
-            # print(Sa/Na)
-            # print(Na)
-            # print(delta)
-            # print(g)
-            # print('ratio : {}'.format(delta**2/g))
-            # print(p_star)
-            # print(maap)
+            prev_beta = np.array([copy.copy(beta1[arm]), copy.copy(beta2[arm])])
+            beta1[arm] += reward[t]
+            beta2[arm] += 1-reward[t]
+            if display_results:
+                print(t)
+                print('delta {}'.format(delta))
+                print('g {}'.format(g))
+                print('ratio : {}'.format(delta**2/g))
+                print('p_star {}'.format(p_star))
+                print('maap {}'.format(maap))
+                print(arm, Na)
+                print('mean {}'.format(Sa/Na))
             f, F, G, B = self.update_approx(arm, reward[t], prev_beta, X, f, F, G, B)
-        if display_results:
-            res = {'delta': delta, 'g': g, 'p_star': p_star, 'maap': maap }
-            print(res)
         return reward, arm_sequence
 
 

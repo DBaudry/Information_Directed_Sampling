@@ -10,6 +10,7 @@ from LinMAB import *
 import matplotlib.pyplot as plt
 from scipy.stats import norm
 from tqdm import tqdm
+from copy import copy
 
 np.random.seed(42)
 
@@ -23,7 +24,7 @@ default_param = {
 }
 
 
-def beta_bernoulli_expe(n_expe, n_arms, n_iter, T, param=default_param, doplot=False):
+def beta_bernoulli_expe(n_expe, n_arms, n_iter, T, b1, b2, param=default_param, doplot=False):
     # methods = ['UCB_Tuned', 'Bayes_UCB', 'KG', 'TS', 'Approx_KG*', 'UCB1', 'MOSS', 'IDS_approx']
     methods = ['UCB1', 'TS', 'IDS_approx']
     p_list = np.zeros((n_expe, n_arms))
@@ -32,7 +33,7 @@ def beta_bernoulli_expe(n_expe, n_arms, n_iter, T, param=default_param, doplot=F
     for j in tqdm(range(n_expe)):
         p = np.random.uniform(low=0., high=1., size=n_arms)
         p_list[j] = p
-        my_mab=BetaBernoulliMAB(p)
+        my_mab = BetaBernoulliMAB(p)
         for k in range(n_iter):
             res['UCB1'] = my_mab.regret(my_mab.UCB1(T, rho=param['UCB1'])[0], T)
             res['TS'] = my_mab.regret(my_mab.TS(T)[0], T)
@@ -41,7 +42,10 @@ def beta_bernoulli_expe(n_expe, n_arms, n_iter, T, param=default_param, doplot=F
             # res['MOSS'] = my_mab.regret(my_mab.MOSS(T, rho=param['MOSS'])[0], T)
             # res['KG'] = my_mab.regret(my_mab.KG(T)[0], T)
             # res['Approx_KG*'] = my_mab.regret(my_mab.Approx_KG_star(T)[0], T)
-            res['IDS_approx'] = my_mab.regret(my_mab.IDS_approx(T, N_steps=param['IDS_approx'])[0], T)
+            beta1 = copy(b1)
+            beta2 = copy(b2)
+            res['IDS_approx'] = my_mab.regret(my_mab.IDS_approx(T, beta1=beta1,
+                            beta2=beta2, N_steps=param['IDS_approx'], display_results=False)[0], T)
             for i, m in enumerate(methods):
                 all_regrets[i, n_iter*j+k] = res[m]
     MC_regret = all_regrets.sum(axis=1)/(n_expe*n_iter)
@@ -217,5 +221,3 @@ def LinearGaussianMAB(n_expe, n_features, n_arms, T, plot=True, plotMAB=False):
             plt.plot(mean_regret[i], label=m)
         plt.legend()
         plt.show()
-
-LinearGaussianMAB(10, 5, 25, 250)
