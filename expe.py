@@ -14,7 +14,7 @@ from copy import copy
 import inspect
 
 
-np.random.seed(42)
+#np.random.seed(45)
 
 param = {
     'UCB1': {'rho':0.2},
@@ -153,7 +153,7 @@ def sanity_check_expe():
 ##### Gaussian test ######
 
 def check_gaussian(n_expe, n_arms, T, doplot=True):
-    methods = ['UCB1', 'GPUCB', 'Tuned_GPUCB', 'BayesUCB', 'KG', 'KG_star', 'IDS_approx']
+    methods = ['UCB1', 'IDS_approx','Tuned_GPUCB', 'BayesUCB', 'GPUCB', 'KG', 'KG_star']  #
     all_regrets = np.zeros((len(methods), n_expe, T))
     for j in tqdm(range(n_expe)):
         mu, sigma, p = np.random.normal(0, 1, n_arms), np.ones(n_arms), []
@@ -171,7 +171,7 @@ def check_gaussian(n_expe, n_arms, T, doplot=True):
     return mean_regret
 
 
-def LinearGaussianMAB(n_expe, n_features, n_arms, T, doplot=True, plotMAB=True):
+def LinearGaussianMAB(n_expe, n_features, n_arms, T, doplot=True, plotMAB=False):
     methods = ['LinUCB', 'Tuned_GPUCB', 'GPUCB', 'TS', 'BayesUCB', 'IDS']
     u = 1 / np.sqrt(5)
     regret = np.zeros((len(methods), n_expe, T))
@@ -189,3 +189,4 @@ def LinearGaussianMAB(n_expe, n_features, n_arms, T, doplot=True, plotMAB=True):
     if doplot:
         plotRegret(methods, mean_regret, 'Linear-Gaussian Model')
     return mean_regret
+

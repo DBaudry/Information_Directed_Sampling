@@ -36,7 +36,7 @@ class PaperLinModel(ArmGaussianLinear):
         self.real_theta = self.local_random.multivariate_normal(np.zeros(n_features), sigma*np.eye(n_features))
 
 class LinMAB():
-    def __init__(self, model):
+    def __init__(self, model, s=20):
         self.model = model
         self.n_a = model.n_actions
         self.d = model.n_features
@@ -46,6 +46,12 @@ class LinMAB():
         self.flag = False
         self.optimal_arm = None
         self.threshold = 0.9
+        self.s = s
+
+    def initPrior(self):
+        mu_0 = np.zeros(self.d)
+        sigma_0 = self.s * np.eye(self.d)
+        return mu_0, sigma_0
 
     def TS(self, T):
         arm_sequence, reward = np.zeros(T), np.zeros(T)
@@ -107,11 +113,6 @@ class LinMAB():
             reward[t], arm_sequence[t] = r_t, a_t
         return reward, arm_sequence
 
-    def initPrior(self):
-        mu_0 = np.zeros(self.d)
-        sigma_0 = np.eye(self.d)
-        return mu_0, sigma_0
-
     def updatePosterior(self, a, mu, sigma):
         f, r = self.features[a], self.reward(a)[0]
         s_inv = np.linalg.inv(sigma)
@@ -136,7 +137,7 @@ class LinMAB():
             v = np.array([np.dot(np.dot(self.features[a], L_hat), self.features[a].T) for a in range(self.n_a)])
             delta = np.array([rho_star - np.dot(self.features[a], mu) for a in range(self.n_a)])
             arm = rd_argmax(-delta**2/v)
-            print(v)
+            #print(v)
         return arm, p_a
 
     def IDS(self, T, M=10000):
