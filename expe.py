@@ -15,7 +15,7 @@ import inspect
 
 np.random.seed(42)
 
-default_param = {
+param = {
     'UCB1': {'rho':0.2},
     'BayesUCB': {'p1':1, 'p2':1, 'c':0},
     'MOSS': {'rho':0.2},
@@ -24,8 +24,17 @@ default_param = {
     'Tuned_GPUCB' : {'c':0.9},
 }
 
+def plotRegret(methods, mean_regret, title):
+    for i in range(len(methods)):
+        plt.plot(mean_regret[i], label=methods[i])
+    plt.title(title)
+    plt.ylabel('Cumulative regret')
+    plt.xlabel('Time period')
+    plt.legend()
+    plt.show()
 
-def beta_bernoulli_expe(n_expe, n_arms, T, param=default_param, doplot=True):
+
+def beta_bernoulli_expe(n_expe, n_arms, T, doplot=True):
     methods = ['UCB1', 'TS', 'UCB_Tuned', 'BayesUCB', 'KG', 'Approx_KG_star', 'MOSS', 'IDS_approx']
     all_regrets = np.zeros((len(methods), n_expe, T))
     for j in tqdm(range(n_expe)):
@@ -36,15 +45,10 @@ def beta_bernoulli_expe(n_expe, n_arms, T, param=default_param, doplot=True):
             args = inspect.getfullargspec(alg)[0][2:]
             args = [T]+[param[m][i] for i in args]
             all_regrets[i, j] = my_mab.regret(alg(*args)[0], T)
-    MC_regret = all_regrets.sum(axis=1)/n_expe
+    mean_regret = all_regrets.mean(axis=1)
     if doplot:
-        for i in range(len(methods)):
-            plt.plot(MC_regret[i], label=methods[i])
-        plt.ylabel('Cumulative Regret')
-        plt.xlabel('Rounds')
-        plt.legend()
-        plt.show()
-    return MC_regret
+        plotRegret(methods, mean_regret, 'Binary rewards')
+    return mean_regret
 
 
 def build_finite(L, K, N):
@@ -120,7 +124,7 @@ def sanity_check_expe():
 
 ##### Gaussian test ######
 
-def check_gaussian(n_expe, n_arms, T, param=default_param, doplot=True):
+def check_gaussian(n_expe, n_arms, T, doplot=True):
     methods = ['UCB1', 'GPUCB', 'Tuned_GPUCB', 'BayesUCB', 'KG', 'KG_star', 'IDS_approx']
     all_regrets = np.zeros((len(methods), n_expe, T))
     for j in tqdm(range(n_expe)):
@@ -133,18 +137,13 @@ def check_gaussian(n_expe, n_arms, T, param=default_param, doplot=True):
             args = inspect.getfullargspec(alg)[0][2:]
             args = [T]+[param[m][i] for i in args]
             all_regrets[i, j] = my_mab.regret(alg(*args)[0], T)
-    MC_regret = all_regrets.sum(axis=1)/n_expe
+    mean_regret = all_regrets.mean(axis=1)
     if doplot:
-        for i in range(len(methods)):
-            plt.plot(MC_regret[i], label=methods[i])
-        plt.ylabel('Cumulative Regret')
-        plt.xlabel('Rounds')
-        plt.legend()
-        plt.show()
-    return MC_regret
+        plotRegret(methods, mean_regret, 'Gaussian rewards')
+    return mean_regret
 
 
-def LinearGaussianMAB(n_expe, n_features, n_arms, T, plot=True, plotMAB=True):
+def LinearGaussianMAB(n_expe, n_features, n_arms, T, doplot=True, plotMAB=True):
     methods = ['LinUCB', 'Tuned_GPUCB', 'GPUCB', 'TS', 'BayesUCB', 'IDS']
     u = 1 / np.sqrt(5)
     regret = np.zeros((len(methods), n_expe, T))
@@ -159,14 +158,12 @@ def LinearGaussianMAB(n_expe, n_features, n_arms, T, plot=True, plotMAB=True):
             reward, arm_sequence = alg(T)
             regret[i, n, :] = model.best_arm_reward() - reward
     mean_regret = [np.array([np.mean(regret[i, :, t]) for t in range(T)]).cumsum() for i in range(len(methods))]
-    if plot:
-        for i, m in enumerate(methods):
-            plt.plot(mean_regret[i], label=m)
-        plt.legend()
-        plt.show()
+    if doplot:
+        plotRegret(methods, mean_regret, 'Linear-Gaussian Model')
+    return mean_regret
 
 #LinearGaussianMAB(10, 3, 5, 250)
 
-beta_bernoulli_expe(10, 10, 100)
+#beta_bernoulli_expe(10, 10, 100)
 
-#check_gaussian(10, 3, 250)
+check_gaussian(10, 4, 250)
