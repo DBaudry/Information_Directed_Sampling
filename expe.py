@@ -13,13 +13,15 @@ from tqdm import tqdm
 import inspect
 
 
+#np.random.seed(45)
+
 param = {
-    'UCB1': {'rho': 0.2},
-    'BayesUCB': {'p1': 1, 'p2': 1, 'c':0},
-    'MOSS': {'rho': 0.2},
-    'ExploreCommit': {'m': 50},
-    'IDS_approx': {'N_steps': 10000, 'display_results': False},
-    'Tuned_GPUCB': {'c': 0.9},
+    'UCB1': {'rho':0.2},
+    'BayesUCB': {'p1':1, 'p2':1, 'c':0},
+    'MOSS': {'rho':0.2},
+    'ExploreCommit': {'m':50},
+    'IDS_approx': {'N_steps':1000, 'display_results':False},
+    'Tuned_GPUCB' : {'c':0.9},
 }
 
 def plotRegret(methods, mean_regret, title):
@@ -32,20 +34,26 @@ def plotRegret(methods, mean_regret, title):
     plt.show()
 
 
-def beta_bernoulli_expe(n_expe, n_arms, T, methods, param_dic, doplot=True):
-    all_regrets = np.zeros((len(methods), n_expe, T))
+def beta_bernoulli_expe(n_expe, n_arms, T, doplot=True):
+    methods = ['UCB1', 'TS', 'UCB_Tuned', 'BayesUCB', 'KG', 'Approx_KG_star', 'MOSS', 'IDS_approx']
+    all_regrets, final_regrets = np.zeros((len(methods), n_expe, T)), np.zeros((len(methods), n_expe))
+    q, quantiles, means, std = np.linspace(0,1,21), {}, {}, {}
     for j in tqdm(range(n_expe)):
         p = np.random.uniform(size=n_arms)
         my_mab = BetaBernoulliMAB(p)
         for i, m in enumerate(methods):
             alg = my_mab.__getattribute__(m)
             args = inspect.getfullargspec(alg)[0][2:]
-            args = [T]+[param_dic[m][i] for i in args]
+            args = [T]+[param[m][i] for i in args]
             all_regrets[i, j] = my_mab.regret(alg(*args)[0], T)
+    for j, m in enumerate(methods):
+        for i in range(n_expe):
+            final_regrets[j, i] = all_regrets[j, i, -1]
+            quantiles[m], means[m], std[m] = np.quantile(final_regrets[j, :], q), final_regrets[j,:].mean(), final_regrets[j, :].std()
     mean_regret = all_regrets.mean(axis=1)
     if doplot:
-        plotRegret(methods, mean_regret, 'Binary rewards')
-    return mean_regret
+        plotRegret(methods, mean_regret, 'Gaussian rewards')
+    return {'all_regrets': all_regrets, 'quantiles': quantiles, 'means': means, 'std': std}
 
 
 def build_finite(L, K, N):
@@ -96,12 +104,14 @@ def check_finite(prior, q, R, theta, N, T):
     plt.legend()
     plt.show()
 
-
+    
 ##### Gaussian test ######
 
 def check_gaussian(n_expe, n_arms, T, doplot=True):
-    methods = ['UCB1', 'IDS_approx','Tuned_GPUCB', 'BayesUCB', 'GPUCB', 'KG', 'KG_star']  #
+    methods = ['UCB1', 'IDS_approx', 'Tuned_GPUCB', 'BayesUCB', 'GPUCB', 'KG', 'KG_star']  #
     all_regrets = np.zeros((len(methods), n_expe, T))
+    final_regrets = np.zeros((len(methods), n_expe))
+    q, quantiles, means, std = np.linspace(0, 1, 21), {}, {}, {}
     for j in tqdm(range(n_expe)):
         mu, sigma, p = np.random.normal(0, 1, n_arms), np.ones(n_arms), []
         for i in range(len(mu)):
@@ -112,16 +122,23 @@ def check_gaussian(n_expe, n_arms, T, doplot=True):
             args = inspect.getfullargspec(alg)[0][2:]
             args = [T]+[param[m][i] for i in args]
             all_regrets[i, j] = my_mab.regret(alg(*args)[0], T)
+    for j, m in enumerate(methods):
+        for i in range(n_expe):
+            final_regrets[j, i] = all_regrets[j, i, -1]
+            quantiles[m], means[m], std[m] = np.quantile(final_regrets[j, :], q), final_regrets[j,:].mean(), final_regrets[j, :].std()
     mean_regret = all_regrets.mean(axis=1)
     if doplot:
         plotRegret(methods, mean_regret, 'Gaussian rewards')
-    return mean_regret
+    return {'all_regrets': all_regrets, 'quantiles': quantiles, 'means': means, 'std': std}
 
 
-def LinearGaussianMAB(n_expe, n_features, n_arms, T, doplot=True, plotMAB=False):
+##### Linear bandit test ######
+
+def check_linearGaussianMAB(n_expe, n_features, n_arms, T, doplot=True, plotMAB=False):
     methods = ['LinUCB', 'Tuned_GPUCB', 'GPUCB', 'TS', 'BayesUCB', 'IDS']
     u = 1 / np.sqrt(5)
-    regret = np.zeros((len(methods), n_expe, T))
+    all_regrets, final_regrets = np.zeros((len(methods), n_expe, T)), np.zeros((len(methods), n_expe))
+    q, quantiles, means, std = np.linspace(0,1,21), {}, {}, {}
     for n in tqdm(range(n_expe)):
         random_state = np.random.randint(0, 312414)
         model = PaperLinModel(u, n_features, n_arms, sigma=10, random_state=random_state)
@@ -131,9 +148,47 @@ def LinearGaussianMAB(n_expe, n_features, n_arms, T, doplot=True, plotMAB=False)
         for i, m in enumerate(methods):
             alg = lMAB.__getattribute__(m)
             reward, arm_sequence = alg(T)
-            regret[i, n, :] = model.best_arm_reward() - reward
-    mean_regret = [np.array([np.mean(regret[i, :, t]) for t in range(T)]).cumsum() for i in range(len(methods))]
+            all_regrets[i, n, :] = model.best_arm_reward() - reward
+    for j, m in enumerate(methods):
+        for i in range(n_expe):
+            final_regrets[j, i] = all_regrets[j, i].sum()
+        quantiles[m], means[m], std[m] = np.quantile(final_regrets[j, :], q), final_regrets[j, :].mean(), final_regrets[j, :].std()
+    mean_regret = [np.array([np.mean(all_regrets[i, :, t]) for t in range(T)]).cumsum() for i in range(len(methods))]
     if doplot:
         plotRegret(methods, mean_regret, 'Linear-Gaussian Model')
-    return mean_regret
+    return {'all_regrets': all_regrets, 'quantiles': quantiles, 'means': means, 'std': std}
+
+
+
+#### Influence of prior ####
+
+def PriorInfLinMAB(n_expe, n_features, n_arms, T, doplot=True, nrow=1, ncol=2):
+    methods = ['IDS', 'LinUCB']
+    u, rs = 1 / np.sqrt(5), np.random.randint(0, 312414, n_expe)
+    L, S, q = [], [1, 5, 10, 20, 40], np.linspace(0,1,21) #:#np.linspace(1, 20, 20):
+    regret, quantiles = np.zeros((len(S), len(methods), n_expe, T)),  np.zeros((len(methods), len(S), len(q)))
+    for j, s in tqdm(enumerate(S), total=len(S), desc='Iterating over prior'):
+        for n in tqdm(range(n_expe), '  Iterating over XPs'):
+            random_state = rs[n]
+            model = PaperLinModel(u, n_features, n_arms, sigma=10, random_state=random_state)
+            lMAB = LinMAB(model, s=s)
+            for i, m in enumerate(methods):
+                alg = lMAB.__getattribute__(m)
+                reward, arm_sequence = alg(T)
+                regret[j, i, n, :] = model.best_arm_reward() - reward
+    if doplot:
+        plt.figure(1)
+        for i, m in enumerate(methods):
+            plt.subplot(nrow, ncol, i+1)
+            plt.title('Method '+m)
+            for j, s in enumerate(S):
+                quantiles[i, j, :] = np.quantile([regret[j, i, n, :].sum() for n in range(n_expe)], q)
+                plt.plot(np.array([np.mean(regret[j, i, :, t]) for t in range(T)]).cumsum(),
+                         label=r'$\Sigma='+str(s)+' \cdot I_'+str(n_features)+'$')
+                plt.ylabel('Cumulative regret')
+                plt.xlabel('Time period')
+                plt.legend()
+        plt.show()
+    return quantiles
+
 
