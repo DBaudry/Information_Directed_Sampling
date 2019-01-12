@@ -129,7 +129,7 @@ class GenericMAB:
             self.update_lists(t, arm, Sa, Na, reward, arm_sequence)
         return reward, arm_sequence
 
-    def ExploreCommit(self, m, T):
+    def ExploreCommit(self, T, m):
         """
         Explore-then-Commit algorithm as presented in Bandits Algorithms, Lattimore, Chapter 6
         :param m: Number of rounds before choosing the best action
