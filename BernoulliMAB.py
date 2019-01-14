@@ -77,21 +77,13 @@ class BetaBernoulliMAB(GenericMAB):
                     if a != app and app != ap:
                         prod_F1[a, ap] = prod_F1[a, ap]*F[app]
                 prod_F1[a, ap] *= f[a]/N
-                p_star[a] = (prod_F1[a, a]).sum()
-
         for a in range(self.nb_arms):
+            p_star[a] = (prod_F1[a, a]).sum()
             for ap in range(self.nb_arms):
                 if a != ap:
                     maap[ap, a] = (prod_F1[a, ap]*G[ap]).sum()/p_star[a]
                 else:
                     maap[a, a] = (prod_F1[a, a]*X).sum()/p_star[a]
-            p_star[a] = (prod_F1[a, a]).sum()
-        for a in range(self.nb_arms):
-                for ap in range(self.nb_arms):
-                    if a != ap:
-                        maap[ap, a] = (prod_F1[a, ap]*G[ap]).sum()/p_star[a]
-                    else:
-                        maap[a, a] = (prod_F1[a, a]*X).sum()/p_star[a]
         rho_star = np.inner(np.diag(maap), p_star)
         delta = rho_star - b1/(b1+b2)
         g = np.zeros(self.nb_arms)
