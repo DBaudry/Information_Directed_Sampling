@@ -38,7 +38,7 @@ def beta_bernoulli_expe(n_expe, n_arms, T, methods, param_dic, doplot=True):
             quantiles[m], means[m], std[m] = np.quantile(final_regrets[j, :], q), final_regrets[j,:].mean(), final_regrets[j, :].std()
     mean_regret = all_regrets.mean(axis=1)
     if doplot:
-        plotRegret(methods, mean_regret, 'Gaussian rewards')
+        plotRegret(methods, mean_regret, 'Binary rewards')
     return {'all_regrets': all_regrets, 'quantiles': quantiles, 'means': means, 'std': std}
 
 
@@ -218,9 +218,7 @@ def PriorInfBer(n_expe, n_arms, T, N_steps=1000, doplot=True, legend=False):
         for n in tqdm(range(n_expe), '  Iterating over XPs'):
             p = np.random.uniform(size=n_arms)
             my_mab = BetaBernoulliMAB(p)
-            regret[beta_1.index(b1), beta_1.index(b2), n, :] = \
-                my_mab.regret(my_mab.IDS_approx(T=T, N_steps=N_steps,
-                                                beta1=beta_1_, beta2=beta_2_, display_results=False)[0], T)
+            regret[beta_1.index(b1), beta_2.index(b2), n, :] = my_mab.regret(my_mab.IDS_approx(T=T, N_steps=N_steps, beta1=beta_1_, beta2=beta_2_, display_results=False)[0], T)
     if doplot:
         plt.figure(1)
         b1_prev, j = -1, 0
@@ -230,14 +228,43 @@ def PriorInfBer(n_expe, n_arms, T, N_steps=1000, doplot=True, legend=False):
                 plt.subplot(3, 3, j+1)
                 j += 1
                 b1_prev = b1
-            quantiles[beta_1.index(b1), beta_1.index(b2), :] = np.quantile([regret[beta_1.index(b1), beta_1.index(b2), n, -1]
-                                                                                for n in range(n_expe)], q)
-            plt.plot(np.array([np.mean(regret[beta_1.index(b1), beta_1.index(b2), :, t])
-                                   for t in range(T)]), label=r'$\beta_2='+str(b2)+'$')
+            quantiles[beta_1.index(b1), beta_2.index(b2), :] = np.quantile([regret[beta_1.index(b1), beta_2.index(b2), n, -1] for n in range(n_expe)], q)
+            plt.plot(np.array([np.mean(regret[beta_1.index(b1), beta_2.index(b2), :, t]) for t in range(T)]), label=r'$\beta_2='+str(b2)+'$')
             plt.title(r'$\beta_1='+str(b1)+'$')
             plt.ylabel('Cumulative regret')
             plt.xlabel('Time period')
         if legend:
             plt.legend()
+        plt.show()
+    return quantiles
+
+
+def GridSearchGaussian():
+    rs = np.random.randint(0, 312414, n_expe)
+    L, S, q = [], [1, 5, 10, 20, 40], np.linspace(0, 1, 21)
+    regret, quantiles = np.zeros((len(S), len(methods), n_expe, T)), np.zeros((len(methods), len(S), len(q)))
+    for j, s in tqdm(enumerate(S), total=len(S), desc='Iterating over prior'):
+        for n in tqdm(range(n_expe), '  Iterating over XPs'):
+            np.random.seed(rs[n])
+            mu, sigma, p = np.random.normal(0, 1, n_arms), np.ones(n_arms), []
+            for i in range(len(mu)):
+                p.append([mu[i], sigma[i]])
+            my_mab = GaussianMAB(p, s=s)
+            for i, m in enumerate(methods):
+                alg = my_mab.__getattribute__(m)
+                args = inspect.getfullargspec(alg)[0][2:]
+                args = [T] + [param_dic[m][i] for i in args]
+                regret[j, i, n, :] = my_mab.regret(alg(*args)[0], T)
+    if doplot:
+        plt.figure(1)
+        for i, m in enumerate(methods):
+            plt.subplot(nrow, ncol, i + 1)
+            plt.title('Method ' + m)
+            for j, s in enumerate(S):
+                quantiles[i, j, :] = np.quantile([regret[j, i, n, -1] for n in range(n_expe)], q)
+                plt.plot(np.array([np.mean(regret[j, i, :, t]) for t in range(T)]), label=r'$\sigma=' + str(s) + '$')
+                plt.ylabel('Cumulative regret')
+                plt.xlabel('Time period')
+                plt.legend()
         plt.show()
     return quantiles
