@@ -135,8 +135,7 @@ class GaussianMAB(GenericMAB):
                 [mu[i] - np.max(list(mu)[:i] + list(mu)[i + 1:]) for i in range(self.nb_arms)])
             r = (delta_t / sigma) ** 2
             m_lower = eta / (4 * sigma ** 2) * (-1 + r + np.sqrt(1 + 6 * r + r ** 2))
-            m_higher = eta / (4 * sigma ** 2 + 10e-9) * (1 + r + np.sqrt(1 + 10 * r + r ** 2))
-            v = np.zeros(self.nb_arms)
+            m_higher = eta / (4 * sigma ** 2) * (1 + r + np.sqrt(1 + 10 * r + r ** 2))
             m_star = np.zeros(self.nb_arms)
             for arm in range(self.nb_arms):
                 if T - t <= m_lower[arm]:
@@ -153,70 +152,6 @@ class GaussianMAB(GenericMAB):
             mu[arm] = (eta[arm] ** 2 * mu[arm] + reward[t] * sigma[arm] ** 2) / (eta[arm] ** 2 + sigma[arm] ** 2)
             sigma[arm] = sigma_next[arm]
         return reward, arm_sequence
-
-
-    def IR(self, mu, sigma):
-            """
-            Implementation of the Information Ratio for gaussian bandits with gaussian prior
-            :param b1: list, first parameter of the beta distribution for each arm
-            :param b2: list, second parameter of the beta distribution for each arm
-            :return: the two components of the Information ration delta and g
-            """
-            def joint_cdf(x):
-                result = 1.
-                for a in range(self.nb_arms):
-                    result = result*norm.cdf(x, mu[a], sigma[a])
-                return result
-
-            def dp_star(x, a):
-                return norm.pdf(x, mu[a], sigma[a])*joint_cdf(x)/norm.cdf(x, mu[a], sigma[a])
-
-            def p_star(a):
-                #x_sup = np.max([np.max(mu) + 5 * np.max(sigma), mu[a] + 5 * sigma[a]])
-                #x_inf = np.min([np.min(mu) - 5 * np.max(sigma), mu[a] - 5 * sigma[a]])
-                return integrate.quad(lambda x: dp_star(x, a), mu[a]-3*sigma[a], mu[a]+3*sigma[a], epsabs=1e-2)[0]
-
-            def MAA(a, p):
-                #x_sup = np.max([np.max(mu) + 5 * np.max(sigma), mu[a] + 5 * sigma[a]])
-                #x_inf = np.min([np.min(mu) - 5 * np.max(sigma), mu[a] - 5 * sigma[a]])
-                return integrate.quad(lambda x: x*dp_star(x, a),mu[a]-3*sigma[a], mu[a]+3*sigma[a], epsabs=1e-2)[0]/p[a]
-
-            def MAAP(ap, a, p):
-                #x_sup = np.max([np.max(mu) + 5 * np.max(sigma), np.max([mu[a], mu[ap]]) + 5 * np.max([sigma[a], sigma[ap]])])
-                #x_inf = np.min([np.min(mu) - 5 * np.max(sigma), np.min([mu[a], mu[ap]]) - 5 * np.max([sigma[a], sigma[ap]])])
-                return mu[ap]-(sigma[ap]**2)/p[a]*integrate.quad(
-                    lambda x: dp_star(x, a)*norm.pdf(x, mu[ap], sigma[ap])/norm.cdf(x, mu[ap], sigma[ap]),
-                    mu[a] - 3 * sigma[a], mu[a] + 3 * sigma[a], epsabs=1e-2)[0]
-
-            def v(a, p, M):
-                vp = p*((M[a]-mu[a])**2)
-                return vp.sum()
-
-            ps = np.array([p_star(a) for a in range(self.nb_arms)])
-            ma = np.array([MAA(a, ps) for a in range(self.nb_arms)])
-            maap = np.array([[MAAP(a, ap, ps) for a in range(self.nb_arms)] for ap in range(self.nb_arms)])
-            rho = (ps*ma).sum()
-            delta = rho-mu
-            v = np.array([v(a, ps, maap.T) for a in range(self.nb_arms)])
-            return delta, v
-
-    def IDS(self, T):
-        """
-        Implementation of the Information Directed Sampling for Gaussian bandits
-        :param T: number of rounds
-        :return: Reward obtained by the policy and sequence of chosen arms
-        """
-        Sa, Na, reward, arm_sequence = self.init_lists(T)
-        mu, sigma = self.init_prior()
-        for t in range(T):
-            delta, v = self.IR(mu, sigma)
-            arm = rd_argmax(-delta**2/v)
-            eta = self.MAB[arm].eta
-            self.update_lists(t, arm, Sa, Na, reward, arm_sequence)
-            mu[arm] = (eta ** 2 * mu[arm] + reward[t] * sigma[arm] ** 2) / (eta ** 2 + sigma[arm] ** 2)
-            sigma[arm] = np.sqrt((eta * sigma[arm]) ** 2 / (eta ** 2 + sigma[arm] ** 2))
-        return reward, arm_sequence
-
 
     def IR_approx(self, mu, sigma, X, f, F, N):
         """
@@ -236,15 +171,13 @@ class GaussianMAB(GenericMAB):
                     if a != app and app != ap:
                         prod_F1[a, ap] *= F[app]
                 prod_F1[a, ap] *= f[a] / N
-            p_star[a] = (prod_F1[a, a]).sum() * 20
-
         for a in range(self.nb_arms):
+            p_star[a] = (prod_F1[a, a]).sum() * (np.max(X)-np.min(X))
             for ap in range(self.nb_arms):
                 if a != ap:
                     maap[ap, a] = mu[ap] - sigma[ap]**2 * (prod_F1[a, ap] * f[ap]).sum() / p_star[a]
                 else:
                     maap[a, a] = (prod_F1[a, a] * X).sum() / p_star[a]
-
         rho_star = np.inner(np.diag(maap), p_star)
         delta = rho_star - mu
         v = np.zeros(self.nb_arms)
@@ -252,6 +185,12 @@ class GaussianMAB(GenericMAB):
             v[arm] = np.inner(p_star, (maap[arm]-mu[arm])**2)
         return delta, v, p_star, maap
 
+    def norm_pdf(self, X, m, s):
+        return 1/s/np.sqrt(2*np.pi) * np.exp(-0.5*((X-m)/s)**2)
+
+    def norm_cdf(self, X, m, s, N):
+        pdf = self.norm_pdf(X, m, s)
+        return pdf.cumsum()/N*20
 
     def init_approx(self, N):
         """
@@ -259,19 +198,19 @@ class GaussianMAB(GenericMAB):
         :return: Initialisation of the arrays for the approximation of the integrals in IDS
         The initialization is made for uniform prior (equivalent to beta(1,1))
         """
-        X = np.linspace(-10., 10., N)
-        f = np.repeat(norm.pdf(X, 0, 1), self.nb_arms, axis=0).reshape((N, self.nb_arms)).T
-        F = np.repeat(norm.cdf(X, 0, 1), self.nb_arms, axis=0).reshape((N, self.nb_arms)).T
+        X = np.linspace(-10, 10., N)
+        f = np.repeat(self.norm_pdf(X, 0, 1), self.nb_arms, axis=0).reshape((N, self.nb_arms)).T
+        F = np.repeat(self.norm_cdf(X, 0, 1, N), self.nb_arms, axis=0).reshape((N, self.nb_arms)).T
         return X, f, F
 
-    def update_approx(self, arm, m, s, X, f, F):
+    def update_approx(self, arm, m, s, X, f, F, N):
         """
         Update all functions with recursion formula. These formula are all derived
         using the properties of the beta distribution: the pdf and cdf of beta(a, b)
          can be used to compute the cdf and pdf of beta(a+1, b) and beta(a, b+1)
         """
-        f[arm] = norm.pdf(X, m, s)
-        F[arm] = norm.cdf(X, m, s)
+        f[arm] = self.norm_pdf(X, m, s)
+        F[arm] = self.norm_cdf(X, m, s, N)
         return f, F
 
     def IDS_approx(self, T, N_steps=10000):
@@ -299,5 +238,5 @@ class GaussianMAB(GenericMAB):
             eta = self.MAB[arm].eta
             mu[arm] = (eta ** 2 * mu[arm] + reward[t] * sigma[arm] ** 2) / (eta ** 2 + sigma[arm] ** 2)
             sigma[arm] = np.sqrt((eta * sigma[arm]) ** 2 / (eta ** 2 + sigma[arm] ** 2))
-            f, F = self.update_approx(arm, mu[arm], sigma[arm], X, f, F)
+            f, F = self.update_approx(arm, mu[arm], sigma[arm], X, f, F, N_steps)
         return reward, arm_sequence
