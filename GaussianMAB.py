@@ -38,22 +38,6 @@ class GaussianMAB(GenericMAB):
             sigma[arm] = np.sqrt((eta * sigma[arm]) ** 2 / (eta ** 2 + sigma[arm] ** 2))
         return reward, arm_sequence
 
-        # Sa, Na, reward, arm_sequence = self.init_lists(T)
-        # mu, S = np.zeros(self.nb_arms), np.zeros(self.nb_arms)
-        # alpha = -1
-        # n_bar = max(2, 3-np.ceil(2*alpha))
-        # for t in range(T):
-        #     if t < self.nb_arms * n_bar:
-        #         arm = t % self.nb_arms
-        #     else:
-        #         for arm in range(self.nb_arms):
-        #             S[arm] = sum([r**2 for r in reward[np.where(arm_sequence==arm)]]) - Sa[arm]**2/Na[arm]
-        #             mu[arm] = Sa[arm]/Na[arm] + np.sqrt(S[arm]/(Na[arm]*(Na[arm]+2*alpha-1))) * np.random.standard_t(Na[arm]+2*alpha-1,1)
-        #         arm = rd_argmax(mu)
-        #     self.update_lists(t, arm, Sa, Na, reward, arm_sequence)
-        # return reward, arm_sequence
-
-
     def BayesUCB(self, T, p1, p2, c=0):
         """
         BayesUCB implementation in the case of a N(p1,p2) prior on the theta parameters
@@ -66,19 +50,6 @@ class GaussianMAB(GenericMAB):
         :param c: Parameter for the quantiles. Default value c=0
         :return: Reward obtained by the policy and sequence of the arms chose
         """
-        # Sa, Na, reward, arm_sequence = self.init_lists(T)
-        # quantiles = np.zeros(self.nb_arms)
-        # S, mu = np.zeros(self.nb_arms), np.zeros(self.nb_arms)
-        # for n in range(T):
-        #     for arm in range(self.nb_arms):
-        #         if Na[arm] >= 2:
-        #             S[arm] = (sum([r ** 2 for r in reward[np.where(arm_sequence == arm)]]) - Sa[arm] ** 2 / Na[arm]) / (Na[arm]-1)
-        #             quantiles[arm] = Sa[arm]/Na[arm] + np.sqrt(S[arm]/Na[arm]) * t.ppf(1-1/n, Na[arm]-1)
-        #             arm = rd_argmax(quantiles)
-        #         else:
-        #             arm = n % self.nb_arms
-        #     self.update_lists(n, arm, Sa, Na, reward, arm_sequence)
-        # return reward, arm_sequence
         Sa, Na, reward, arm_sequence = self.init_lists(T)
         mu, sigma = self.init_prior()
         for t in range(T):
@@ -107,22 +78,6 @@ class GaussianMAB(GenericMAB):
             sigma[arm] = np.sqrt((eta * sigma[arm]) ** 2 / (eta ** 2 + sigma[arm] ** 2))
         return reward, arm_sequence
 
-        # Sa, Na, reward, arm_sequence = self.init_lists(T)
-        # S, mu = np.zeros(self.nb_arms), np.zeros(self.nb_arms)
-        # alpha = 0.5
-        # for t in range(T):
-        #     if t < self.nb_arms*2:
-        #         arm = t % self.nb_arms
-        #     else:
-        #         for arm in range(self.nb_arms):
-        #             S[arm] = sum([r ** 2 for r in reward[np.where(arm_sequence == arm)]]) - Sa[arm] ** 2 / Na[arm]
-        #             mu[arm] = Sa[arm] / Na[arm] + np.sqrt(
-        #                 S[arm] / (Na[arm] * (Na[arm] + 2 * alpha - 1))) * np.random.standard_t(Na[arm] + 2 * alpha - 1, 1)
-        #         beta = 2 * np.log(self.nb_arms * (t*np.pi)**2 / 6 / 0.1)
-        #         arm = rd_argmax(mu + np.sqrt(beta * S/(Na * (Na+2*alpha-1))))
-        #     self.update_lists(t, arm, Sa, Na, reward, arm_sequence)
-        # return reward, arm_sequence
-
     def Tuned_GPUCB(self, T, c=0.9):
         """
         """
@@ -135,21 +90,6 @@ class GaussianMAB(GenericMAB):
             mu[arm] = (eta ** 2 * mu[arm] + reward[t] * sigma[arm] ** 2) / (eta ** 2 + sigma[arm] ** 2)
             sigma[arm] = np.sqrt((eta * sigma[arm]) ** 2 / (eta ** 2 + sigma[arm] ** 2))
         return reward, arm_sequence
-
-        # Sa, Na, reward, arm_sequence = self.init_lists(T)
-        # S, mu = np.zeros(self.nb_arms), np.zeros(self.nb_arms)
-        # alpha = 0.5
-        # for t in range(T):
-        #     if t < self.nb_arms*2:
-        #         arm = t % self.nb_arms
-        #     else:
-        #         for arm in range(self.nb_arms):
-        #             S[arm] = sum([r ** 2 for r in reward[np.where(arm_sequence == arm)]]) - Sa[arm] ** 2 / Na[arm]
-        #             mu[arm] = Sa[arm] / Na[arm] + np.sqrt(
-        #                 S[arm] / (Na[arm] * (Na[arm] + 2 * alpha - 1))) * np.random.standard_t(Na[arm] + 2 * alpha - 1, 1)
-        #         arm = rd_argmax(mu + np.sqrt(c*np.log(t) / (Na * (Na + 2 * alpha - 1))))
-        #     self.update_lists(t, arm, Sa, Na, reward, arm_sequence)
-        # return reward, arm_sequence
 
     def kgf(self, x):
         return norm.cdf(x) * x + norm.pdf(x)
@@ -233,13 +173,6 @@ class GaussianMAB(GenericMAB):
         for arm in range(self.nb_arms):
             v[arm] = np.inner(p_star, (maap[arm]-mu[arm])**2)
         return delta, v, p_star, maap
-
-    def norm_pdf(self, X, m, s):
-        return 1/s/np.sqrt(2*np.pi) * np.exp(-0.5*((X-m)/s)**2)
-
-    def norm_cdf(self, X, m, s, N):
-        pdf = self.norm_pdf(X, m, s)
-        return pdf.cumsum()/N*20
 
     def init_approx(self, N):
         """
@@ -332,4 +265,3 @@ class GaussianMAB(GenericMAB):
             sigma[arm] = np.sqrt((eta * sigma[arm]) ** 2 / (eta ** 2 + sigma[arm] ** 2))
             thetas[arm] = np.random.normal(mu[arm], sigma[arm], M)
         return reward, arm_sequence
-
