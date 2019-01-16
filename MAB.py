@@ -85,8 +85,10 @@ class GenericMAB:
                 MC_regret += self.regret(self.Tuned_GPUCB(T, c=pGPUCB)[0], T)
             elif method == 'IDS_approx':
                 MC_regret += self.regret(self.IDS_approx(T=T, N_steps=1000)[0], T)
+            elif method == 'VIDS_sample':
+                MC_regret += self.regret(self.VIDS_sample(T=T, M=10000, VIDS=False)[0], T)
             elif method == 'IDS_sample':
-                MC_regret += self.regret(self.IDS_sample(T=T, N_steps=1000)[0], T)
+                MC_regret += self.regret(self.IDS_sample(T=T, M=10000, VIDS=True)[0], T)
             else:
                 raise NotImplementedError
         return MC_regret / N

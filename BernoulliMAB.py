@@ -211,3 +211,72 @@ class BetaBernoulliMAB(GenericMAB):
                 arm = rd_argmax(mu + (T-t)*m)
             self.update_lists(t, arm, Sa, Na, reward, arm_sequence)
         return reward, arm_sequence
+
+    def computeIDS(self, Maap, p_a,thetas, M, VIDS=False):
+        mu = np.mean(thetas, axis=1)
+        theta_hat = np.argmax(thetas, axis=0)
+        for a in range(self.nb_arms):
+            mu[a] = np.mean(thetas[a])
+            for ap in range(self.nb_arms):
+                t = thetas[ap, np.where(theta_hat == a)]
+                Maap[ap, a] = np.nan_to_num(np.mean(t))
+                if ap == a:
+                    p_a[a] = t.shape[1]/M
+        if np.max(p_a) >= self.threshold:
+            self.optimal_arm = np.argmax(p_a)
+            arm = self.optimal_arm
+        else:
+            rho_star = sum([p_a[a] * Maap[a, a] for a in range(self.nb_arms)])
+            delta = rho_star - mu
+            if VIDS:
+                v = np.array([sum([p_a[ap] * (Maap[a, ap] - mu[a]) ** 2 for ap in range(self.nb_arms)]) for a in range(self.nb_arms)])
+                arm = rd_argmax(-delta ** 2 / v)
+            else:
+                g = np.array([sum([p_a[ap] * (Maap[a, ap] * np.log(Maap[a, ap]/mu[a]+1e-10) +
+                                              (1-Maap[a, ap]) * np.log((1-Maap[a, ap])/(1-mu[a])+1e-10))
+                                   for ap in range(self.nb_arms)]) for a in range(self.nb_arms)])
+                arm = self.IDSAction(delta, g)
+        return arm, p_a
+
+    def IDS_sample(self, T, M=100000):
+        Sa, Na, reward, arm_sequence = self.init_lists(T)
+        beta1, beta2 = np.ones(self.nb_arms), np.ones(self.nb_arms)
+        reward, arm_sequence = np.zeros(T), np.zeros(T)
+        Maap, p_a = np.zeros((self.nb_arms, self.nb_arms)), np.zeros(self.nb_arms)
+        thetas = np.array([np.random.beta(beta1[arm], beta2[arm], M) for arm in range(self.nb_arms)])
+        for t in range(T):
+            if not self.flag:
+                if np.max(p_a) >= self.threshold:
+                    self.flag = True
+                    arm = self.optimal_arm
+                else:
+                    arm, p_a = self.computeIDS(Maap, p_a, thetas, M)
+            else:
+                arm = self.optimal_arm
+            self.update_lists(t, arm, Sa, Na, reward, arm_sequence)
+            beta1[arm] += reward[t]
+            beta2[arm] += 1-reward[t]
+            thetas[arm] = np.random.beta(beta1[arm], beta2[arm], M)
+        return reward, arm_sequence
+
+
+    def VIDS_sample(self, T, M=100000, VIDS=True):
+        Sa, Na, reward, arm_sequence = self.init_lists(T)
+        beta1, beta2 = np.ones(self.nb_arms), np.ones(self.nb_arms)
+        reward, arm_sequence = np.zeros(T), np.zeros(T)
+        Maap, p_a = np.zeros((self.nb_arms, self.nb_arms)), np.zeros(self.nb_arms)
+        thetas = np.array([np.random.beta(beta1[arm], beta2[arm], M) for arm in range(self.nb_arms)])
+        for t in range(T):
+            if not self.flag:
+                if np.max(p_a) >= self.threshold:
+                    self.flag = True
+                    arm = self.optimal_arm
+                else:
+                    arm, p_a = self.computeIDS(Maap, p_a, thetas, M, VIDS)
+            else:
+                arm = self.optimal_arm
+            self.update_lists(t, arm, Sa, Na, reward, arm_sequence)
+            beta1[arm] += reward[t]
+            beta2[arm] += 1-reward[t]
+            thetas[arm] = np.random.beta(beta1[arm], beta2[arm], M)
+        return reward, arm_sequence
