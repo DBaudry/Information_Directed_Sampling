@@ -5,16 +5,16 @@ class GaussianMAB(GenericMAB):
     """
 
     """
-    def __init__(self, p, s=10):
+    def __init__(self, p):
         super().__init__(method=['G']*len(p), param=p)
         self.flag = False
         self.optimal_arm = None
         self.threshold = 0.99
-        self.s = s
 
-    def init_prior(self):
+    def init_prior(self, s0=1):
         ''' Init prior for Gaussian prior '''
-        mu, sigma = np.zeros(self.nb_arms), self.s * np.ones(self.nb_arms)
+        mu = np.zeros(self.nb_arms)
+        sigma = s0 * np.ones(self.nb_arms)
         return mu, sigma
 
     def TS(self, T):
@@ -22,21 +22,36 @@ class GaussianMAB(GenericMAB):
         Implementation of the Thomson Sampling algorithm for Gaussian bandits
         :param T: number of rounds
         :return: Reward obtained by the policy and sequence of the arms chose
+
         """
         Sa, Na, reward, arm_sequence = self.init_lists(T)
-        mu, S = np.zeros(self.nb_arms), np.zeros(self.nb_arms)
-        alpha = 0.5
-        n_bar = max(2, 3-np.ceil(2*alpha))
+        mu, sigma = self.init_prior()
         for t in range(T):
-            if t < self.nb_arms * n_bar:
-                arm = t % self.nb_arms
+            if t < self.nb_arms:
+                arm = t
             else:
-                for arm in range(self.nb_arms):
-                    S[arm] = sum([r**2 for r in reward[np.where(arm_sequence==arm)]]) - Sa[arm]**2/Na[arm]
-                    mu[arm] = Sa[arm]/Na[arm] + np.sqrt(S[arm]/(Na[arm]*(Na[arm]+2*alpha-1))) * np.random.standard_t(Na[arm]+2*alpha-1,1)
-                arm = rd_argmax(mu)
+                theta = np.array([np.random.normal(mu[arm], sigma[arm]) for arm in range(self.nb_arms)])
+                arm = rd_argmax(theta)
             self.update_lists(t, arm, Sa, Na, reward, arm_sequence)
+            eta = self.MAB[arm].eta
+            mu[arm] = (eta ** 2 * mu[arm] + reward[t] * sigma[arm] ** 2) / (eta ** 2 + sigma[arm] ** 2)
+            sigma[arm] = np.sqrt((eta * sigma[arm]) ** 2 / (eta ** 2 + sigma[arm] ** 2))
         return reward, arm_sequence
+
+        # Sa, Na, reward, arm_sequence = self.init_lists(T)
+        # mu, S = np.zeros(self.nb_arms), np.zeros(self.nb_arms)
+        # alpha = -1
+        # n_bar = max(2, 3-np.ceil(2*alpha))
+        # for t in range(T):
+        #     if t < self.nb_arms * n_bar:
+        #         arm = t % self.nb_arms
+        #     else:
+        #         for arm in range(self.nb_arms):
+        #             S[arm] = sum([r**2 for r in reward[np.where(arm_sequence==arm)]]) - Sa[arm]**2/Na[arm]
+        #             mu[arm] = Sa[arm]/Na[arm] + np.sqrt(S[arm]/(Na[arm]*(Na[arm]+2*alpha-1))) * np.random.standard_t(Na[arm]+2*alpha-1,1)
+        #         arm = rd_argmax(mu)
+        #     self.update_lists(t, arm, Sa, Na, reward, arm_sequence)
+        # return reward, arm_sequence
 
 
     def BayesUCB(self, T, p1, p2, c=0):
@@ -51,56 +66,90 @@ class GaussianMAB(GenericMAB):
         :param c: Parameter for the quantiles. Default value c=0
         :return: Reward obtained by the policy and sequence of the arms chose
         """
+        # Sa, Na, reward, arm_sequence = self.init_lists(T)
+        # quantiles = np.zeros(self.nb_arms)
+        # S, mu = np.zeros(self.nb_arms), np.zeros(self.nb_arms)
+        # for n in range(T):
+        #     for arm in range(self.nb_arms):
+        #         if Na[arm] >= 2:
+        #             S[arm] = (sum([r ** 2 for r in reward[np.where(arm_sequence == arm)]]) - Sa[arm] ** 2 / Na[arm]) / (Na[arm]-1)
+        #             quantiles[arm] = Sa[arm]/Na[arm] + np.sqrt(S[arm]/Na[arm]) * t.ppf(1-1/n, Na[arm]-1)
+        #             arm = rd_argmax(quantiles)
+        #         else:
+        #             arm = n % self.nb_arms
+        #     self.update_lists(n, arm, Sa, Na, reward, arm_sequence)
+        # return reward, arm_sequence
         Sa, Na, reward, arm_sequence = self.init_lists(T)
-        quantiles = np.zeros(self.nb_arms)
-        S, mu = np.zeros(self.nb_arms), np.zeros(self.nb_arms)
-        for n in range(T):
-            for arm in range(self.nb_arms):
-                if Na[arm] >= 2:
-                    S[arm] = (sum([r ** 2 for r in reward[np.where(arm_sequence == arm)]]) - Sa[arm] ** 2 / Na[arm]) / (Na[arm]-1)
-                    quantiles[arm] = Sa[arm]/Na[arm] + np.sqrt(S[arm]/Na[arm]) * t.ppf(1-1/(n+1), Na[arm]-1)
-                    arm = rd_argmax(quantiles)
-                else:
-                    arm = n % self.nb_arms
-            self.update_lists(n, arm, Sa, Na, reward, arm_sequence)
+        mu, sigma = self.init_prior()
+        for t in range(T):
+            if t < self.nb_arms:
+                arm = t
+            else:
+                arm = rd_argmax(mu + sigma * norm.ppf(t/(t+1)))
+            self.update_lists(t, arm, Sa, Na, reward, arm_sequence)
+            eta = self.MAB[arm].eta
+            mu[arm] = (eta ** 2 * mu[arm] + reward[t] * sigma[arm] ** 2) / (eta ** 2 + sigma[arm] ** 2)
+            sigma[arm] = np.sqrt((eta * sigma[arm]) ** 2 / (eta ** 2 + sigma[arm] ** 2))
         return reward, arm_sequence
+
 
     def GPUCB(self, T):
         """
         """
         Sa, Na, reward, arm_sequence = self.init_lists(T)
-        S, mu = np.zeros(self.nb_arms), np.zeros(self.nb_arms)
-        alpha = 0.5
+        mu, sigma = self.init_prior()
         for t in range(T):
-            if t < self.nb_arms*2:
-                arm = t % self.nb_arms
-            else:
-                for arm in range(self.nb_arms):
-                    S[arm] = sum([r ** 2 for r in reward[np.where(arm_sequence == arm)]]) - Sa[arm] ** 2 / Na[arm]
-                    mu[arm] = Sa[arm] / Na[arm] + np.sqrt(
-                        S[arm] / (Na[arm] * (Na[arm] + 2 * alpha - 1))) * np.random.standard_t(Na[arm] + 2 * alpha - 1, 1)
-                beta = 2 * np.log(self.nb_arms * (t*np.pi)**2 / 6 / 0.1)
-                arm = rd_argmax(mu + np.sqrt(beta * S/(Na * (Na+2*alpha-1))))
+            beta = 2 * np.log(self.nb_arms * ((t+1) * np.pi) ** 2 / 6 / 0.1)
+            arm = rd_argmax(mu + sigma*np.sqrt(beta))
             self.update_lists(t, arm, Sa, Na, reward, arm_sequence)
+            eta = self.MAB[arm].eta
+            mu[arm] = (eta ** 2 * mu[arm] + reward[t] * sigma[arm] ** 2) / (eta ** 2 + sigma[arm] ** 2)
+            sigma[arm] = np.sqrt((eta * sigma[arm]) ** 2 / (eta ** 2 + sigma[arm] ** 2))
         return reward, arm_sequence
+
+        # Sa, Na, reward, arm_sequence = self.init_lists(T)
+        # S, mu = np.zeros(self.nb_arms), np.zeros(self.nb_arms)
+        # alpha = 0.5
+        # for t in range(T):
+        #     if t < self.nb_arms*2:
+        #         arm = t % self.nb_arms
+        #     else:
+        #         for arm in range(self.nb_arms):
+        #             S[arm] = sum([r ** 2 for r in reward[np.where(arm_sequence == arm)]]) - Sa[arm] ** 2 / Na[arm]
+        #             mu[arm] = Sa[arm] / Na[arm] + np.sqrt(
+        #                 S[arm] / (Na[arm] * (Na[arm] + 2 * alpha - 1))) * np.random.standard_t(Na[arm] + 2 * alpha - 1, 1)
+        #         beta = 2 * np.log(self.nb_arms * (t*np.pi)**2 / 6 / 0.1)
+        #         arm = rd_argmax(mu + np.sqrt(beta * S/(Na * (Na+2*alpha-1))))
+        #     self.update_lists(t, arm, Sa, Na, reward, arm_sequence)
+        # return reward, arm_sequence
 
     def Tuned_GPUCB(self, T, c=0.9):
         """
         """
         Sa, Na, reward, arm_sequence = self.init_lists(T)
-        S, mu = np.zeros(self.nb_arms), np.zeros(self.nb_arms)
-        alpha = 0.5
+        mu, sigma = self.init_prior()
         for t in range(T):
-            if t < self.nb_arms*2:
-                arm = t % self.nb_arms
-            else:
-                for arm in range(self.nb_arms):
-                    S[arm] = sum([r ** 2 for r in reward[np.where(arm_sequence == arm)]]) - Sa[arm] ** 2 / Na[arm]
-                    mu[arm] = Sa[arm] / Na[arm] + np.sqrt(
-                        S[arm] / (Na[arm] * (Na[arm] + 2 * alpha - 1))) * np.random.standard_t(Na[arm] + 2 * alpha - 1, 1)
-                arm = rd_argmax(mu + np.sqrt(c*np.log(t) / (Na * (Na + 2 * alpha - 1))))
+            arm = rd_argmax(mu + sigma*np.sqrt(c*np.log(t+1)))
             self.update_lists(t, arm, Sa, Na, reward, arm_sequence)
+            eta = self.MAB[arm].eta
+            mu[arm] = (eta ** 2 * mu[arm] + reward[t] * sigma[arm] ** 2) / (eta ** 2 + sigma[arm] ** 2)
+            sigma[arm] = np.sqrt((eta * sigma[arm]) ** 2 / (eta ** 2 + sigma[arm] ** 2))
         return reward, arm_sequence
+
+        # Sa, Na, reward, arm_sequence = self.init_lists(T)
+        # S, mu = np.zeros(self.nb_arms), np.zeros(self.nb_arms)
+        # alpha = 0.5
+        # for t in range(T):
+        #     if t < self.nb_arms*2:
+        #         arm = t % self.nb_arms
+        #     else:
+        #         for arm in range(self.nb_arms):
+        #             S[arm] = sum([r ** 2 for r in reward[np.where(arm_sequence == arm)]]) - Sa[arm] ** 2 / Na[arm]
+        #             mu[arm] = Sa[arm] / Na[arm] + np.sqrt(
+        #                 S[arm] / (Na[arm] * (Na[arm] + 2 * alpha - 1))) * np.random.standard_t(Na[arm] + 2 * alpha - 1, 1)
+        #         arm = rd_argmax(mu + np.sqrt(c*np.log(t) / (Na * (Na + 2 * alpha - 1))))
+        #     self.update_lists(t, arm, Sa, Na, reward, arm_sequence)
+        # return reward, arm_sequence
 
     def kgf(self, x):
         return norm.cdf(x) * x + norm.pdf(x)
@@ -199,8 +248,8 @@ class GaussianMAB(GenericMAB):
         The initialization is made for uniform prior (equivalent to beta(1,1))
         """
         X = np.linspace(-10, 10., N)
-        f = np.repeat(self.norm_pdf(X, 0, 1), self.nb_arms, axis=0).reshape((N, self.nb_arms)).T
-        F = np.repeat(self.norm_cdf(X, 0, 1, N), self.nb_arms, axis=0).reshape((N, self.nb_arms)).T
+        f = np.repeat(norm.pdf(X, 0, 1), self.nb_arms, axis=0).reshape((N, self.nb_arms)).T
+        F = np.repeat(norm.cdf(X, 0, 1), self.nb_arms, axis=0).reshape((N, self.nb_arms)).T
         return X, f, F
 
     def update_approx(self, arm, m, s, X, f, F, N):
@@ -209,8 +258,9 @@ class GaussianMAB(GenericMAB):
         using the properties of the beta distribution: the pdf and cdf of beta(a, b)
          can be used to compute the cdf and pdf of beta(a+1, b) and beta(a, b+1)
         """
-        f[arm] = self.norm_pdf(X, m, s)
-        F[arm] = self.norm_cdf(X, m, s, N)
+        f[arm] = norm.pdf(X, m, s)
+        F[arm] = norm.cdf(X, m, s)
+
         return f, F
 
     def IDS_approx(self, T, N_steps=10000):
@@ -221,9 +271,9 @@ class GaussianMAB(GenericMAB):
         """
         Sa, Na, reward, arm_sequence = self.init_lists(T)
         X, f, F = self.init_approx(N_steps)
-        mu, sigma = self.init_prior()
+        mu, sigma = self.init_prior(s0=1)
         p_star = np.zeros(self.nb_arms)
-        for t in range(T):
+        for t in tqdm(range(T)):
             if not self.flag:
                 if np.max(p_star) > self.threshold:
                     self.flag = True
@@ -240,3 +290,46 @@ class GaussianMAB(GenericMAB):
             sigma[arm] = np.sqrt((eta * sigma[arm]) ** 2 / (eta ** 2 + sigma[arm] ** 2))
             f, F = self.update_approx(arm, mu[arm], sigma[arm], X, f, F, N_steps)
         return reward, arm_sequence
+
+    def computeIDS(self, Maap, p_a,thetas, M):
+        mu = np.mean(thetas, axis=1)
+        theta_hat = np.argmax(thetas, axis=0)
+        for a in range(self.nb_arms):
+            mu[a] = np.mean(thetas[a])
+            for ap in range(self.nb_arms):
+                t = thetas[ap, np.where(theta_hat == a)]
+                Maap[ap, a] = np.nan_to_num(np.mean(t))
+                if ap == a:
+                    p_a[a] = t.shape[1]/M
+        if np.max(p_a) >= self.threshold:
+            self.optimal_arm = np.argmax(p_a)
+            arm = self.optimal_arm
+        else:
+            rho_star = sum([p_a[a] * Maap[a, a] for a in range(self.nb_arms)])
+            delta = rho_star - mu
+            v = np.array([sum([p_a[ap] * (Maap[a, ap] - mu[a]) ** 2 for ap in range(self.nb_arms)]) for a in range(self.nb_arms)])
+            arm = rd_argmax(-delta ** 2 / v)
+        return arm, p_a
+
+    def IDS_sample(self, T, M=10000):
+        eta = 1
+        Sa, Na, reward, arm_sequence = self.init_lists(T)
+        mu, sigma = self.init_prior(s0=1)
+        reward, arm_sequence = np.zeros(T), np.zeros(T)
+        Maap, p_a = np.zeros((self.nb_arms, self.nb_arms)), np.zeros(self.nb_arms)
+        thetas = np.array([np.random.normal(mu[arm], sigma[arm], M) for arm in range(self.nb_arms)])
+        for t in range(T):
+            if not self.flag:
+                if np.max(p_a) >= self.threshold:
+                    self.flag = True
+                    arm = self.optimal_arm
+                else:
+                    arm, p_a = self.computeIDS(Maap, p_a, thetas, M)
+            else:
+                arm = self.optimal_arm
+            self.update_lists(t, arm, Sa, Na, reward, arm_sequence)
+            mu[arm] = (eta ** 2 * mu[arm] + reward[t] * sigma[arm] ** 2) / (eta ** 2 + sigma[arm] ** 2)
+            sigma[arm] = np.sqrt((eta * sigma[arm]) ** 2 / (eta ** 2 + sigma[arm] ** 2))
+            thetas[arm] = np.random.normal(mu[arm], sigma[arm], M)
+        return reward, arm_sequence
+
