@@ -4,6 +4,7 @@ import numpy as np
 import pickle as pkl
 from utils import build_finite
 import os
+import utils
 
 np.random.seed(46)
 
@@ -30,41 +31,47 @@ colors = {'KG': 'yellow', 'Approximate KG*':'orchid', 'KG*': 'orchid', 'Exact ID
 
 """methods available : UCB1, TS, UCB_Tuned, BayesUCB, KG, KG_star, Approx_KG_star, MOSS, IDS, IDS_approx"""
 
-finite_methods = ['UCB1', 'TS', 'ExploreCommit', 'UCB_Tuned', 'MOSS']
-bernoulli_methods = ['IDS_approx', 'VIDS_sample', 'IDS_sample', 'TS', 'UCB_Tuned', 'BayesUCB', 'KG', 'Approx_KG_star', 'MOSS']
-gaussian_methods = ['TS', 'KG', 'BayesUCB', 'GPUCB', 'Tuned_GPUCB', 'VIDS_approx', 'VIDS_sample', 'KG_star']
-linear_methods = ['TS', 'LinUCB', 'BayesUCB', 'GPUCB', 'Tuned_GPUCB', 'VIDS_sample']
+finite_methods = ['UCB1', 'ExploreCommit', 'UCB_Tuned', 'MOSS']
+# bernoulli_methods = ['IDS_approx', 'VIDS_sample', 'IDS_sample', 'TS', 'UCB_Tuned', 'BayesUCB', 'KG', 'Approx_KG_star', 'MOSS']
+# gaussian_methods = ['TS', 'KG', 'BayesUCB', 'GPUCB', 'Tuned_GPUCB', 'VIDS_approx', 'VIDS_sample', 'KG_star']
+# linear_methods = ['TS', 'LinUCB', 'BayesUCB', 'GPUCB', 'Tuned_GPUCB', 'VIDS_sample']
+
+bernoulli_methods = ['IDS_sample']
+gaussian_methods = ['VIDS_sample']
+linear_methods = ['VIDS_sample']
 
 """Kind of Bandit problem"""
-check_Finite = False
+check_Finite = True
 check_Bernoulli = False
 check_Gaussian = False
-check_Linear = True
+check_Linear = False
 store = False  # if you want to store the results
 
 if __name__ == '__main__':
     if check_Finite:
-        p, q, R = build_finite(L=1000, K=10, N=200)
+        p, q, R = utils.build_finite(L=10000, K=20, N=500)
         labels = finite_methods
-        colors = [colors[t] for t in labels]
-        exp.finite_expe(methods=finite_methods, labels=labels, colors=colors, param_dic=param, prior=p, q=q, R=R, theta=0, N=100, T=1000)
-
+        exp.finite_expe(methods=finite_methods, labels=labels, colors=False,
+                        param_dic=param, prior=p, q=q, R=R, N=2000, T=1000, theta=0)
     if check_Bernoulli:
         labels = bernoulli_methods
         colors = [colors[t] for t in labels]
-        beta = exp.bernoulli_expe(T=100, n_expe=1, n_arms=3, methods=bernoulli_methods, param_dic=param, labels=labels, colors=colors)
+        beta = exp.bernoulli_expe(T=100, n_expe=1, n_arms=3, methods=bernoulli_methods, 
+                                  param_dic=param, labels=labels, colors=colors)
         if store:
             pkl.dump(beta, open(os.path.join(path, 'beta.pkl'), 'wb'))
 
     if check_Gaussian:
         labels = gaussian_methods
         colors = [colors[t] for t in labels]
-        gau = exp.gaussian_expe(n_expe=1, n_arms=10, T=100, methods=gaussian_methods, param_dic=param, labels=colors, colors=False)
+        gau = exp.gaussian_expe(n_expe=1, n_arms=10, T=100, methods=gaussian_methods,
+                                param_dic=param, labels=colors, colors=False)
         if store:
             pkl.dump(gau, open(os.path.join(path, 'gau.pkl'), 'wb'))
 
     if check_Linear:
         labels = linear_methods
+
         colors = [colors[t] for t in labels]
         lin = exp.LinMAB_expe(n_expe=20, n_features=0, n_arms=0, T=1000, methods=linear_methods, param_dic=param,
                               labels=labels, colors=colors, movieLens=True)
