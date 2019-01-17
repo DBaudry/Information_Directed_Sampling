@@ -1,176 +1,155 @@
-# Importations
+""" Packages import """
 import numpy as np
 import arms
 from tqdm import tqdm
 from utils import rd_argmax
 import random
-from scipy.stats import beta, norm, t
-import scipy.integrate as integrate
-import copy
+import inspect
+
+mapping = {'B': arms.ArmBernoulli, 'beta': arms.ArmBeta,
+           'F': arms.ArmFinite, 'G': arms.ArmGaussian}
 
 
 class GenericMAB:
-    def __init__(self, method, param):
-        self.MAB = self.generate_arms(method, param)
+    """
+    Generic class for arms that defines general methods
+    """
+
+    def __init__(self, methods, p):
+        """
+        Initialization of the arms
+        :param methods: string, probability distribution of each arm
+        :param p: np.array or list, parameters of the probability distribution of each arm
+        """
+        self.MAB = self.generate_arms(methods, p)
         self.nb_arms = len(self.MAB)
         self.means = [el.mean for el in self.MAB]
         self.mu_max = np.max(self.means)
 
     @staticmethod
-    def generate_arms(meth, par):
+    def generate_arms(methods, p):
         """
         Method for generating different arms
-        :param meth: Probability distribution used for the arm
-        :param par: Parameters for the probability distribution of all the different arms
-        :return:
+        :param methods: string, probability distribution of each arm
+        :param p: np.array or list, parameters of the probability distribution of each arm
+        :return: list of class objects, list of arms
         """
         arms_list = list()
-        for i, m in enumerate(meth):
-            p = par[i]
-            if m == 'B':
-                arms_list.append(arms.ArmBernoulli(p, random_state=np.random.randint(1, 312414)))
-            elif m == 'beta':
-                arms_list.append(arms.ArmBeta(a=p[0], b=p[1], random_state=np.random.randint(1, 312414)))
-            elif m == 'F':
-                arms_list.append(arms.ArmFinite(X=p[0], P=p[1], random_state=np.random.randint(1, 312414)))
-            elif m == 'Exp':
-                arms_list.append(arms.ArmExp(L=p[0], B=p[1], random_state=np.random.randint(1, 312414)))
-            elif m == 'G':
-                arms_list.append(arms.ArmGaussian(mu=p[0], eta=p[1], random_state=np.random.randint(1, 312414)))
-            else:
-                raise NameError('This method is not implemented, available methods are defined in generate_arms method')
+        for i, m in enumerate(methods):
+            args = [p[i]] + [[np.random.randint(1, 312414)]]
+            args = sum(args, []) if type(p[i]) == list else args
+            try:
+                alg = mapping[m]
+                arms_list.append(alg(*args))
+            except Exception:
+                raise NotImplementedError
         return arms_list
 
     def regret(self, reward, T):
         """
-        Computing the regret of a single experiment.
-        :param reward: The array of reward the policy was able to receive by selecting the different actions
-        :param T: Number of rounds
-        :return: Cumulated regret for a single experiment
+        Compute the regret of a single experiment
+        :param reward: np.array, the array of reward obtained from the policy up to time T
+        :param T: int, time horizon
+        :return: np.array, cumulative regret for a single experiment
         """
-        return self.mu_max * np.arange(1, T+1) - np.cumsum(reward)
+        return self.mu_max * np.arange(1, T + 1) - np.cumsum(reward)
 
-    def MC_regret(self, method, N, T, pBayes=(1, 1), pGPUCB=0.9, param=0.2):
+    def MC_regret(self, method, N, T, param_dic):
         """
-        Monte Carlo method for approximating the expectation of the regret.
-        :param method: Method used (UCB, Thomson Sampling, etc..)
-        :param N: Number of independent Monte Carlo simulation
-        :param T: Number of rounds for each simulation
-        :param param: Parameters for the different methods, can be the value of rho for UCB model or an int
+        Implementation of Monte Carlo method to approximate the expectation of the regret
+        :param method: string, method used (UCB, Thomson Sampling, etc..)
+        :param N: int, number of independent Monte Carlo simulation
+        :param T: int, time horizon
+        :param param_dic: dict, parameters for the different methods, can be the value of rho for UCB model or an int
         corresponding to the number of rounds of exploration for the ExploreCommit method
         """
-        MC_regret = np.zeros(T)
-        for _ in tqdm(range(N), desc='Computing ' + str(N) + ' simulations'):
-            if method == 'RandomPolicy':
-                MC_regret += self.regret(self.RandomPolicy(T)[0], T)
-            elif method == 'UCB1':
-                MC_regret += self.regret(self.UCB1(T, param)[0], T)
-            elif method == 'TS':
-                MC_regret += self.regret(self.TS(T)[0], T)
-            elif method == 'IDS':
-                MC_regret += self.regret(self.IDS(T)[0], T)
-            elif method == 'MOSS':
-                MC_regret += self.regret(self.MOSS(T, param)[0], T)
-            elif method == 'KG':
-                MC_regret += self.regret(self.KG(T)[0], T)
-            elif method == 'KG*':
-                MC_regret += self.regret(self.KG_star(T)[0], T)
-            elif method == 'ExploreCommit':
-                MC_regret += self.regret(self.ExploreCommit(m=param, T=T)[0], T)
-            elif method == 'BayesUCB':
-                MC_regret += self.regret(self.BayesUCB(T=T, p1=pBayes[0], p2=pBayes[1], c=0.)[0], T)
-            elif method == 'GPUCB':
-                MC_regret += self.regret(self.GPUCB(T)[0], T)
-            elif method == 'Tuned_GPUCB':
-                MC_regret += self.regret(self.Tuned_GPUCB(T, c=pGPUCB)[0], T)
-            elif method == 'IDS_approx':
-                MC_regret += self.regret(self.IDS_approx(T=T, N_steps=1000)[0], T)
-            elif method == 'VIDS_sample':
-                MC_regret += self.regret(self.VIDS_sample(T=T, M=10000, VIDS=False)[0], T)
-            elif method == 'IDS_sample':
-                MC_regret += self.regret(self.IDS_sample(T=T, M=10000, VIDS=True)[0], T)
-            else:
-                raise NotImplementedError
-        return MC_regret / N
+        mc_regret = np.zeros(T)
+        try:
+            alg = self.__getattribute__(method)
+            args = inspect.getfullargspec(alg)[0][2:]
+            args = [T] + [param_dic[method][i] for i in args]
+            for _ in tqdm(range(N), desc='Computing ' + str(N) + ' simulations'):
+                mc_regret += self.regret(alg(*args)[0], T)
+        except Exception:
+            raise NotImplementedError
+        return mc_regret / N
 
     def init_lists(self, T):
         """
-        :param T: number of rounds
-        :return: - Sa: Cumulated reward of arm a
-                 - Na: number of pull of arm a
-                 - reward: array of reward
-                 - Arms chosen: array of length T containing the arm choosed at each step
+        Initialization of quantities of interest used for all methods
+        :param T: int, time horizon
+        :return: - Sa: np.array, cumulative reward of arm a
+                 - Na: np.array, number of times a has been pulled
+                 - reward: np.array, rewards
+                 - arm_sequence: np.array, arm chose at each step
         """
-        return np.zeros(self.nb_arms), np.zeros(self.nb_arms), np.zeros(T), np.zeros(T)
+        Sa, Na, reward, arm_sequence = np.zeros(self.nb_arms), np.zeros(self.nb_arms), np.zeros(T), np.zeros(T)
+        return Sa, Na, reward, arm_sequence
 
     def update_lists(self, t, arm, Sa, Na, reward, arm_sequence):
         """
         Update all the parameters of interest after choosing the correct arm
-        :param t: current round
-        :param arm: arm choosen at this round
-        :param Sa:  Cumulated reward array
-        :param Na:  Number of pull of arm a
-        :param reward: array of reward, reward[t] is filled
-        :param arm_sequence: array of the selected arms, arm_sequence[t] is filled
-        :return: Nothing but update the parameters of interest
+        :param t: int, current time/round
+        :param arm: int, arm chose at this round
+        :param Sa:  np.array, cumulative reward array up to time t-1
+        :param Na:  np.array, number of times arm has been pulled up to time t-1
+        :param reward: np.array, rewards obtained with the policy up to time t-1
+        :param arm_sequence: np.array, arm chose at each step up to time t-1
         """
-        Na[arm] += 1  # Updating the number of times the arm "arm" was selected
-        arm_sequence[t] = arm  # the arm "arm" was selected at round t
-        new_reward = self.MAB[arm].sample() # obtaining the new reward by pulling the arm a
-        reward[t] = new_reward  # adding this new reward to the array of rewards
-        Sa[arm] += new_reward  # updating the cumulative reward of the arm "arm"
+        Na[arm], arm_sequence[t], new_reward = Na[arm] + 1, arm, self.MAB[arm].sample()
+        reward[t], Sa[arm] = new_reward, Sa[arm] + new_reward
 
     def RandomPolicy(self, T):
         """
-        Implementation of a random policy consisting in randomly choosing one of the available arms.
-        Only useful for checking that the behavior of the different policies is normal
-        :param T:  Number of rounds
-        :return: Reward obtained by the policy and sequence of the arms choosed
+        Implementation of a random policy consisting in randomly choosing one of the available arms. Only useful
+        for checking that the behavior of the different policies is normal
+        :param T:  int, time horizon
+        :return: np.arrays, reward obtained by the policy and sequence of chosen arms
         """
         Sa, Na, reward, arm_sequence = self.init_lists(T)
         for t in range(T):
-            arm = random.randint(0, self.nb_arms-1)
+            arm = random.randint(0, self.nb_arms - 1)
             self.update_lists(t, arm, Sa, Na, reward, arm_sequence)
         return reward, arm_sequence
 
     def ExploreCommit(self, T, m):
         """
-        Explore-then-Commit algorithm as presented in Bandits Algorithms, Lattimore, Chapter 6
-        :param m: Number of rounds before choosing the best action
-        :param T: Number of steps
-        :return: Reward obtained by the policy and sequence of the arms choosed
+        Implementation of Explore-then-Commit algorithm
+        :param m: int, number of rounds before choosing the best action
+        :param T: int, time horizon
+        :return: np.arrays, reward obtained by the policy and sequence of chosen arms
         """
         Sa, Na, reward, arm_sequence = self.init_lists(T)
-        for t in range(m*self.nb_arms):
+        for t in range(m * self.nb_arms):
             arm = t % self.nb_arms
             self.update_lists(t, arm, Sa, Na, reward, arm_sequence)
-        arm = np.argmax(Sa/Na)
-        for t in range(m*self.nb_arms + 1, T):
+        arm = np.argmax(Sa / Na)
+        for t in range(m * self.nb_arms + 1, T):
             self.update_lists(t, arm, Sa, Na, reward, arm_sequence)
         return reward, arm_sequence
 
     def UCB1(self, T, rho):
         """
-        Implementation of the UCB1 algorithm
-        :param T: Number of rounds
-        :param rho: Parameter for balancing between exploration and exploitation
-        :return: Reward obtained by the policy and sequence of the arms choosed
+        Implementation of UCB1 algorithm
+        :param T: int, time horizon
+        :param rho: float, parameter for balancing between exploration and exploitation
+        :return: np.arrays, reward obtained by the policy and sequence of chosen arms
         """
         Sa, Na, reward, arm_sequence = self.init_lists(T)
         for t in range(T):
             if t < self.nb_arms:
                 arm = t
             else:
-                arm = rd_argmax(Sa/Na+rho*np.sqrt(np.log(t+1)/2/Na))
+                arm = rd_argmax(Sa / Na + rho * np.sqrt(np.log(t + 1) / 2 / Na))
             self.update_lists(t, arm, Sa, Na, reward, arm_sequence)
         return reward, arm_sequence
 
     def UCB_Tuned(self, T):
         """
-        Implementation of the UCB-tuned algorithm
-        :param T: Number of rounds
-        :param rho: Parameter for balancing between exploration and exploitation
-        :return: Reward obtained by the policy and sequence of the arms choosed
+        Implementation of UCB-tuned algorithm
+        :param T: int, time horizon
+        :param rho: float, parameter for balancing between exploration and exploitation
+        :return: np.arrays, reward obtained by the policy and sequence of chosen arms
         """
         Sa, Na, reward, arm_sequence = self.init_lists(T)
         S, m = np.zeros(self.nb_arms), np.zeros(self.nb_arms)
@@ -179,19 +158,19 @@ class GenericMAB:
                 arm = t
             else:
                 for arm in range(self.nb_arms):
-                    S[arm] = sum([r ** 2 for r in reward[np.where(arm_sequence == arm)]])/Na[arm] - (Sa[arm]/ Na[arm])**2
-                    m[arm] = min(0.25, S[arm]+np.sqrt(2*np.log(t+1)/Na[arm]))
-                arm = rd_argmax(Sa/Na+np.sqrt(np.log(t+1)/Na*m))
+                    S[arm] = sum([r ** 2 for r in reward[np.where(arm_sequence == arm)]]) / Na[arm] - (
+                            Sa[arm] / Na[arm]) ** 2
+                    m[arm] = min(0.25, S[arm] + np.sqrt(2 * np.log(t + 1) / Na[arm]))
+                arm = rd_argmax(Sa / Na + np.sqrt(np.log(t + 1) / Na * m))
             self.update_lists(t, arm, Sa, Na, reward, arm_sequence)
         return reward, arm_sequence
 
     def MOSS(self, T, rho):
         """
-        Implementation of the Minimax Optimal Strategy in the Stochastic case (MOSS).
-        Further details for the algorithm can be found in the chapter 9 of Bandits Algorithm (Tor Lattimore et al.)
-        :param T: Number of rounds
-        :param rho: Parameter for balancing between exploration and exploitation
-        :return: Reward obtained by the policy and sequence of the arms choosed
+        Implementation of Minimax Optimal Strategy in the Stochastic case (MOSS).
+        :param T: int, time horizon
+        :param rho: float, parameter for balancing between exploration and exploitation
+        :return: np.arrays, reward obtained by the policy and sequence of chosen arms
         """
         Sa, Na, reward, arm_sequence = self.init_lists(T)
         for t in range(T):
@@ -205,78 +184,43 @@ class GenericMAB:
 
     def TS(self, T):
         """
-        Implementation of the Thomson Sampling algorithm
-        :param T: number of rounds
-        :return: Reward obtained by the policy and sequence of the arms choosed
+        Implementation of Thomson Sampling algorithm
+        :param T: int, time horizon
+        :return: np.arrays, reward obtained by the policy and sequence of chosen arms
         """
         Sa, Na, reward, arm_sequence = self.init_lists(T)
         theta = np.zeros(self.nb_arms)
         for t in range(T):
             for k in range(self.nb_arms):
                 if Na[k] >= 1:
-                    theta[k] = np.random.beta(Sa[k]+1, Na[k]-Sa[k]+1)
+                    theta[k] = np.random.beta(Sa[k] + 1, Na[k] - Sa[k] + 1)
                 else:
                     theta[k] = np.random.uniform()
             arm = rd_argmax(theta)
             self.update_lists(t, arm, Sa, Na, reward, arm_sequence)
-            Sa[arm] += np.random.binomial(1, reward[t])-reward[t]
+            Sa[arm] += np.random.binomial(1, reward[t]) - reward[t]
         return reward, arm_sequence
 
-    def IDSAction0(self, delta, g):
+    def IDSAction(self, delta, g):
+        """
+        Implementation of IDSAction algorithm as defined in Russo & Van Roy, p. 242
+        :param delta: np.array, instantaneous regrets
+        :param g: np.array, information gains
+        :return: int, arm to pull
+        """
         Q = np.zeros((self.nb_arms, self.nb_arms))
         IR = np.ones((self.nb_arms, self.nb_arms)) * np.inf
         q = np.linspace(0, 1, 1000)
-        for a in range(self.nb_arms-1):
-            for ap in range(a+1, self.nb_arms):
-                da, dap = delta[a], delta[ap]
-                ga, gap = g[a], g[ap]
-                qaap = q[rd_argmax(-(q*da+(1-q)*dap)**2 / (q*ga+(1-q)*gap))]
-                # q2 = -1.
-                # if da != dap and ga != gap:
-                #     q2 = dap/(da-dap)-2*gap/(ga-gap)
-                # if 0 <= q2 <= 1:
-                #     Q[a, ap] = q2
-                # elif da**2/ga > dap**2/gap:
-                #     Q[a, ap] = 0
-                # elif da**2/ga == dap**2:
-                #     Q[a, ap] = np.random.choice([0, 1])
-                # else:
-                #     Q[a, ap] = 1
-                #IR[a, ap] = (Q[a, ap]*(da-dap)+dap)**2/(Q[a, ap]*(ga-gap)+gap)
-                IR[a, ap] = (qaap*(da-dap)+dap)**2/(qaap*(ga-gap)+gap)
-                Q[a, ap] = qaap
-        amin = rd_argmax(-IR.reshape(self.nb_arms*self.nb_arms))
-        a, ap = amin//self.nb_arms, amin % self.nb_arms
-        b = np.random.binomial(1, Q[a, ap])
-        return int(b*a+(1-b)*ap)
-
-    def IDSAction(self, delta, g):
-        Q = np.zeros((self.nb_arms, self.nb_arms))
-        IR = np.ones((self.nb_arms, self.nb_arms))*np.inf
-        q = np.linspace(0, 1, 1000)
-        for a in range(self.nb_arms-1):
-            for ap in range(a+1, self.nb_arms):
+        for a in range(self.nb_arms - 1):
+            for ap in range(a + 1, self.nb_arms):
                 if g[a] < 1e-6 or g[ap] < 1e-6:
                     return rd_argmax(-g)
-                da, dap = delta[a], delta[ap]
-                ga, gap = g[a], g[ap]
-                qaap = q[rd_argmax(-(q*da+(1-q)*dap)**2/(q*ga+(1-q)*gap))]
-                # print('qaap {}'.format(qaap))
-                IR[a, ap] = (qaap*(da-dap)+dap)**2/(qaap*(ga-gap)+gap)
+                da, dap, ga, gap = delta[a], delta[ap], g[a], g[ap]
+                qaap = q[rd_argmax(-(q * da + (1 - q) * dap) ** 2 / (q * ga + (1 - q) * gap))]
+                IR[a, ap] = (qaap * (da - dap) + dap) ** 2 / (qaap * (ga - gap) + gap)
                 Q[a, ap] = qaap
-        amin = rd_argmax(-IR.reshape(self.nb_arms*self.nb_arms))
-        a, ap = amin//self.nb_arms, amin % self.nb_arms
+        amin = rd_argmax(-IR.reshape(self.nb_arms * self.nb_arms))
+        a, ap = amin // self.nb_arms, amin % self.nb_arms
         b = np.random.binomial(1, Q[a, ap])
-        return int(b*a+(1-b)*ap)
-
-    def IDS(self, T):
-        raise NotImplementedError
-
-    def BayesUCB(self, T, p1, p2, c=0.):
-        raise NotImplementedError
-
-    def GPUCB(self, T):
-        raise NotImplementedError
-
-    def Tuned_GPUCB(self, T, c):
-        raise NotImplementedError
+        arm = int(b * a + (1 - b) * ap)
+        return arm
