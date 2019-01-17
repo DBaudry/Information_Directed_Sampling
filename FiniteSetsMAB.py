@@ -1,6 +1,6 @@
 """ Packages import """
 from MAB import *
-
+from copy import copy
 
 class FiniteSets(GenericMAB):
     def __init__(self, method, param, q_theta, prior, R):
@@ -135,6 +135,7 @@ class FiniteSets(GenericMAB):
         :return: np.arrays, reward obtained by the policy and sequence of chosen arms
         """
         Sa, Na, Y, arm_sequence = self.init_lists(T)
+        all_posterior = np.empty((T, self.L))
         reward = np.zeros(T)
         for t in range(T):
             if not self.flag:
@@ -146,4 +147,5 @@ class FiniteSets(GenericMAB):
             self.update_lists(t, arm, Sa, Na, Y, arm_sequence)
             reward[t] = self.R[int(Y[t])]
             self.update_prior(arm, int(Y[t]))
-        return reward, arm_sequence
+            all_posterior[t] = self.prior
+        return reward, arm_sequence, all_posterior
