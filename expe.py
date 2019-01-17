@@ -82,7 +82,7 @@ def finite_expe(methods, labels, colors, param_dic, prior, q, R, theta, N, T):
     plt.grid(color='grey', linestyle='--', linewidth=0.5); plt.legend(); plt.show()
 
 
-def LinMAB_expe(n_expe, n_features, n_arms, T, methods, param_dic, labels, colors, doplot=True):
+def LinMAB_expe(n_expe, n_features, n_arms, T, methods, param_dic, labels, colors, doplot=True, movieLens=False):
     """
 
     :param n_expe:
@@ -96,9 +96,14 @@ def LinMAB_expe(n_expe, n_features, n_arms, T, methods, param_dic, labels, color
     :param doplot:
     :return:
     """
-    u = 1 / np.sqrt(5)
-    models = [LinMAB(PaperLinModel(u, n_features, n_arms, sigma=10)) for _ in range(n_expe)]
+    if movieLens:
+        models = [LinMAB(ColdStartMovieLensModel()) for _ in range(n_expe)]
+        log = True
+    else:
+        u = 1 / np.sqrt(5)
+        models = [LinMAB(PaperLinModel(u, n_features, n_arms, sigma=10)) for _ in range(n_expe)]
+        log = False
     mean_regret, all_regrets, final_regrets, quantiles, means, std = storeRegret(models, methods, param_dic, n_expe, T)
     if doplot:
-        plotRegret(labels, mean_regret, colors, 'Gaussian rewards')
+        plotRegret(labels, mean_regret, colors, 'Gaussian rewards', log=log)
     return {'all_regrets': all_regrets, 'quantiles': quantiles, 'means': means, 'std': std}
