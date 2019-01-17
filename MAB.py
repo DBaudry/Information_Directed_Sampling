@@ -6,8 +6,7 @@ from utils import rd_argmax
 import random
 import inspect
 
-mapping = {'B': arms.ArmBernoulli, 'beta': arms.ArmBeta,
-           'F': arms.ArmFinite, 'G': arms.ArmGaussian}
+mapping = {'B': arms.ArmBernoulli, 'beta': arms.ArmBeta, 'F': arms.ArmFinite, 'G': arms.ArmGaussian}
 
 
 class GenericMAB:
@@ -115,8 +114,8 @@ class GenericMAB:
     def ExploreCommit(self, T, m):
         """
         Implementation of Explore-then-Commit algorithm
-        :param m: int, number of rounds before choosing the best action
         :param T: int, time horizon
+        :param m: int, number of rounds before choosing the best action
         :return: np.arrays, reward obtained by the policy and sequence of chosen arms
         """
         Sa, Na, reward, arm_sequence = self.init_lists(T)
