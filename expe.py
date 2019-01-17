@@ -21,7 +21,7 @@ def bernoulli_expe(n_expe, n_arms, T, methods, param_dic, labels, colors, doplot
     :param doplot:
     :return:
     """
-    P = np.repeat(np.random.uniform(size=n_arms), n_expe).reshape(n_expe, n_arms)
+    P = np.random.uniform(0, 1, size=n_arms*n_expe).reshape(n_expe, n_arms)
     models = [BetaBernoulliMAB(p) for p in P]
     mean_regret, all_regrets, final_regrets, quantiles, means, std = storeRegret(models, methods, param_dic, n_expe, T)
     if doplot:
@@ -42,8 +42,8 @@ def gaussian_expe(n_expe, n_arms, T, methods, param_dic, labels, colors, doplot=
     :param doplot:
     :return:
     """
-    mu = np.repeat(np.random.normal(0, 1, size=n_arms), n_expe).reshape(n_expe, n_arms)
-    sigma = np.repeat(np.ones(n_arms), n_expe).reshape(n_expe, n_arms)
+    mu = np.random.normal(0, 1, size=n_expe*n_arms).reshape(n_expe, n_arms)
+    sigma = np.ones(n_arms*n_expe).reshape(n_expe, n_arms)
     P = [[[m[i], s[i]] for i in range(n_arms)] for m, s in zip(mu, sigma)]
     models = [GaussianMAB(p) for p in P]
     mean_regret, all_regrets, final_regrets, quantiles, means, std = storeRegret(models, methods, param_dic, n_expe, T)

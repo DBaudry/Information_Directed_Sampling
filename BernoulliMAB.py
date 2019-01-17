@@ -52,9 +52,12 @@ class BetaBernoulliMAB(GenericMAB):
         Sa, Na, reward, arm_sequence = self.init_lists(T)
         theta = np.zeros(self.nb_arms)
         for t in range(T):
-            for k in range(self.nb_arms):
-                theta[k] = np.random.beta(Sa[k]+1, Na[k]-Sa[k]+1) if Na[k] >= 1 else np.random.uniform()
-            arm = rd_argmax(theta)
+            if t < self.nb_arms:
+                arm = t
+            else:
+                for k in range(self.nb_arms):
+                    theta[k] = np.random.beta(Sa[k]+1, Na[k]-Sa[k]+1)
+                arm = rd_argmax(theta)
             self.update_lists(t, arm, Sa, Na, reward, arm_sequence)
         return reward, arm_sequence
 
