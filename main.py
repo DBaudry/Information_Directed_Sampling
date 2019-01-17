@@ -2,6 +2,7 @@
 import expe as exp
 import numpy as np
 import pickle as pkl
+from utils import build_finite
 import os
 
 np.random.seed(46)
@@ -21,6 +22,12 @@ param = {
     'VIDS_approx': {'rg': 10., 'N': 1000},
     'VIDS_sample': {'M': 10000, 'VIDS': True},
 }
+
+colors = {'KG': 'yellow', 'Approximate KG*':'orchid', 'KG*': 'orchid', 'Exact IDS':'chartreuse',
+          'Thompson Sampling': 'blue', 'Bayes UCB': 'cyan', 'Tuned UCB': 'red', 'Linear UCB': 'yellow',
+          'MOSS': 'black', 'GPUCB': 'black', 'Tuned GPUCB': 'red', 'Grid V-IDS': 'purple', 'Sample V-IDS': 'green',
+          'Grid IDS': 'chartreuse', 'Sample IDS': 'orange'}
+
 """methods available : UCB1, TS, UCB_Tuned, BayesUCB, KG, KG_star, Approx_KG_star, MOSS, IDS, IDS_approx"""
 
 finite_methods = ['UCB1', 'TS', 'ExploreCommit', 'UCB_Tuned', 'MOSS']
@@ -37,25 +44,29 @@ store = False  # if you want to store the results
 
 if __name__ == '__main__':
     if check_Finite:
-        p, q, R = exp.build_finite(L=1000, K=10, N=200)
+        p, q, R = build_finite(L=1000, K=10, N=200)
         labels = finite_methods
-        exp.finite_expe(methods=finite_methods, labels=labels, colors=False, param_dic=param, prior=p, q=q, R=R, theta=0, N=100, T=1000)
+        colors = [colors[t] for t in labels]
+        exp.finite_expe(methods=finite_methods, labels=labels, colors=colors, param_dic=param, prior=p, q=q, R=R, theta=0, N=100, T=1000)
 
     if check_Bernoulli:
         labels = bernoulli_methods
-        beta = exp.bernoulli_expe(T=100, n_expe=1, n_arms=3, methods=bernoulli_methods, param_dic=param, labels=labels, colors=False)
+        colors = [colors[t] for t in labels]
+        beta = exp.bernoulli_expe(T=100, n_expe=1, n_arms=3, methods=bernoulli_methods, param_dic=param, labels=labels, colors=colors)
         if store:
             pkl.dump(beta, open(os.path.join(path, 'beta.pkl'), 'wb'))
 
     if check_Gaussian:
         labels = gaussian_methods
-        gau = exp.gaussian_expe(n_expe=1, n_arms=10, T=100, methods=gaussian_methods, param_dic=param, labels=labels, colors=False)
+        colors = [colors[t] for t in labels]
+        gau = exp.gaussian_expe(n_expe=1, n_arms=10, T=100, methods=gaussian_methods, param_dic=param, labels=colors, colors=False)
         if store:
             pkl.dump(gau, open(os.path.join(path, 'gau.pkl'), 'wb'))
 
     if check_Linear:
         labels = linear_methods
+        colors = [colors[t] for t in labels]
         lin = exp.LinMAB_expe(n_expe=20, n_features=0, n_arms=0, T=1000, methods=linear_methods, param_dic=param,
-                              labels=labels, colors=False, movieLens=True)
+                              labels=labels, colors=colors, movieLens=True)
         if store:
             pkl.dump(lin, open(os.path.join(path, 'lin10features.pkl'), 'wb'))

@@ -10,6 +10,7 @@ class FiniteSets(GenericMAB):
         :param method: list, distributions of each arm
         :param param: list, parameters of each arm's distribution
         :param q_theta: np.array, L*K*N array with the probability of each outcome knowing theta
+        :param prior: np.array,
         :param R: np.array, mapping between outcomes and rewards
         """
         super().__init__(method, param)
