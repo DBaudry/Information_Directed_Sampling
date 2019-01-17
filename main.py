@@ -55,7 +55,7 @@ if __name__ == '__main__':
 
     if check_Linear:
         labels = linear_methods
-        lin = exp.LinMAB_expe(n_expe=10, n_features=5, n_arms=30, T=250, methods=linear_methods, param_dic=param,
-                              labels=labels, colors=False)
+        lin = exp.LinMAB_expe(n_expe=20, n_features=0, n_arms=0, T=1000, methods=linear_methods, param_dic=param,
+                              labels=labels, colors=False, movieLens=True)
         if store:
-            pkl.dump(lin, open(os.path.join(path, 'lin.pkl'), 'wb'))
+            pkl.dump(lin, open(os.path.join(path, 'lin10features.pkl'), 'wb'))

@@ -28,7 +28,7 @@ def display_results(delta, g, ratio, p_star):
     print('p_star {}'.format(p_star))
 
 
-def plotRegret(labels, mean_regret, colors, title):
+def plotRegret(labels, mean_regret, colors, title, log=False):
     """
     Plot Bayesian regret
     :param labels: list, list of labels for the different curves
@@ -39,6 +39,8 @@ def plotRegret(labels, mean_regret, colors, title):
     for i, l in enumerate(labels):
         c = cmap[i] if not colors else colors[i]
         plt.plot(mean_regret[i], c=c, label=l)
+        if log:
+            plt.yscale('log')
     plt.grid(color='grey', linestyle='--', linewidth=0.5)
     plt.title(title)
     plt.ylabel('Cumulative regret')

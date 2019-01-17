@@ -52,6 +52,14 @@ class PaperLinModel(ArmGaussianLinear):
         self.real_theta = self.local_random.multivariate_normal(np.zeros(n_features), sigma*np.eye(n_features))
 
 
+class ColdStartMovieLensModel(ArmGaussianLinear):
+    def __init__(self, n_features=30, n_actions=207, eta=1, sigma=10):
+        super(ColdStartMovieLensModel, self).__init__(random_state=np.random.randint(1, 312414))
+        self.eta = eta
+        self.features = np.loadtxt('Vt.csv', delimiter=',').T
+        self.real_theta = self.local_random.multivariate_normal(np.zeros(n_features), sigma*np.eye(n_features))
+
+
 class LinMAB():
     def __init__(self, model):
         """
