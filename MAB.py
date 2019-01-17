@@ -181,25 +181,6 @@ class GenericMAB:
             self.update_lists(t, arm, Sa, Na, reward, arm_sequence)
         return reward, arm_sequence
 
-    def TS(self, T):
-        """
-        Implementation of Thomson Sampling algorithm
-        :param T: int, time horizon
-        :return: np.arrays, reward obtained by the policy and sequence of chosen arms
-        """
-        Sa, Na, reward, arm_sequence = self.init_lists(T)
-        theta = np.zeros(self.nb_arms)
-        for t in range(T):
-            for k in range(self.nb_arms):
-                if Na[k] >= 1:
-                    theta[k] = np.random.beta(Sa[k] + 1, Na[k] - Sa[k] + 1)
-                else:
-                    theta[k] = np.random.uniform()
-            arm = rd_argmax(theta)
-            self.update_lists(t, arm, Sa, Na, reward, arm_sequence)
-            Sa[arm] += np.random.binomial(1, reward[t]) - reward[t]
-        return reward, arm_sequence
-
     def IDSAction(self, delta, g):
         """
         Implementation of IDSAction algorithm as defined in Russo & Van Roy, p. 242
