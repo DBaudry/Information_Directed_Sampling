@@ -7,7 +7,7 @@ import utils
 
 np.random.seed(46)
 
-path = '/Users/bfiliot/Desktop/MVA/RL/PROJET/'
+path = r'C:\Users\dobau\Desktop\MVA\Reinforcement Learning\Project'
 
 param = {
     'UCB1': {'rho': np.sqrt(2)},
@@ -29,13 +29,13 @@ finite_methods = ['UCB1', 'ExploreCommit', 'UCB_Tuned', 'MOSS']
 # gaussian_methods = ['TS', 'KG', 'BayesUCB', 'GPUCB', 'Tuned_GPUCB', 'VIDS_approx', 'VIDS_sample', 'KG_star']
 # linear_methods = ['TS', 'LinUCB', 'BayesUCB', 'GPUCB', 'Tuned_GPUCB', 'VIDS_sample']
 
-bernoulli_methods = ['IDS_sample']
+bernoulli_methods = ['TS', 'BayesUCB', 'VIDS_sample', 'IDS_sample']
 gaussian_methods = ['VIDS_sample']
 linear_methods = ['VIDS_sample']
 
 """Kind of Bandit problem"""
-check_Finite = True
-check_Bernoulli = False
+check_Finite = False
+check_Bernoulli = True
 check_Gaussian = False
 check_Linear = False
 store = False  # if you want to store the results
@@ -49,10 +49,10 @@ if __name__ == '__main__':
 
     if check_Bernoulli:
         labels = bernoulli_methods
-        beta = exp.bernoulli_expe(T=1000, n_expe=10, n_arms=10, methods=bernoulli_methods,
+        beta = exp.bernoulli_expe(T=10000, n_expe=200, n_arms=3, methods=bernoulli_methods,
                                   param_dic=param, labels=labels, colors=False)
         if store:
-            pkl.dump(beta, open(os.path.join(path, 'beta.pkl'), 'wb'))
+            pkl.dump(beta, open(os.path.join(path, 'beta_asymp.pkl'), 'wb'))
 
     if check_Gaussian:
         labels = gaussian_methods
