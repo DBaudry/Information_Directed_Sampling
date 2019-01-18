@@ -330,4 +330,4 @@ class GaussianMAB(GenericMAB):
             self.update_lists(t, arm, Sa, Na, reward, arm_sequence)
             mu, sigma = self.update_posterior(arm, reward[t], sigma, mu)
             thetas[arm] = np.random.normal(mu[arm], sigma[arm], M)
-        return reward, arm_sequence
+        return reward, arm_sequence,

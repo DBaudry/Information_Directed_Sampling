@@ -7,6 +7,52 @@ import inspect
 
 cmap = {0: 'black', 1: 'blue', 2: 'yellow', 3: 'green', 4: 'red', 5:'grey', 6:'purple', 7:'brown', 8:'pink', 9:'cyan'}
 
+mapping_methods_labels = {'KG': 'KG',
+                          'Approx_KG_star': 'Approximate KG*',
+                          'KG_star': 'KG*',
+                          'IDS': 'Exact IDS',
+                          'TS': 'Thompson Sampling',
+                          'BayesUCB': 'Bayes UCB',
+                          'UCB_Tuned': 'Tuned UCB',
+                          'LinUCB': 'Linear UCB',
+                          'MOSS': 'MOSS',
+                          'GPUCB': 'GP-UCB',
+                          'Tuned_GPUCB': 'Tuned GP-UCB',
+                          'VIDS_approx': 'Grid V-IDS',
+                          'VIDS_sample': 'Sample V-IDS',
+                          'IDS_approx': 'Grid IDS',
+                          'IDS_sample': 'Sample IDS',
+                          'UCB1': 'UCB1'}
+
+mapping_methods_colors = {'KG': 'yellow',
+          'Approx_KG_star':'orchid',
+          'KG_star': 'orchid',
+          'IDS':'chartreuse',
+          'TS': 'blue',
+          'BayesUCB': 'cyan',
+          'UCB_Tuned': 'red',
+          'LinUCB': 'yellow',
+          'MOSS': 'black',
+          'GPUCB': 'black',
+          'Tuned_GPUCB': 'red',
+          'VIDS_approx': 'purple',
+          'VIDS_sample': 'green',
+          'IDS_approx': 'chartreuse',
+          'IDS_sample': 'orange',
+          'UCB1': 'darkred'}
+
+
+def labelColor(methods):
+    """
+    Map methods to labels and colors for regret curves
+    :param methods: list, list of methods
+    :return: lists, labels and vectors
+    """
+    labels = [mapping_methods_labels[m] for m in methods]
+    colors = [mapping_methods_colors[m] for m in methods]
+    return labels, colors
+
+
 def rd_argmax(vector):
     """
     Compute random among eligible maximum indices
