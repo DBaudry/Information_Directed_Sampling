@@ -5,7 +5,6 @@ from GaussianMAB import GaussianMAB
 from FiniteSetsMAB import FiniteSets
 from LinMAB import PaperLinModel, ColdStartMovieLensModel, LinMAB
 from utils import plotRegret, storeRegret, cmap, build_bernoulli_finite_set, plot_IDS_results
-from tqdm import tqdm
 import matplotlib.pyplot as plt
 import numpy as np
 from tqdm import tqdm

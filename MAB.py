@@ -5,7 +5,6 @@ from tqdm import tqdm
 from utils import rd_argmax
 import random
 import inspect
-from copy import copy
 
 mapping = {'B': arms.ArmBernoulli, 'beta': arms.ArmBeta, 'F': arms.ArmFinite, 'G': arms.ArmGaussian}
 

@@ -96,6 +96,15 @@ def plotRegret(labels, mean_regret, colors, title, log=False):
 
 
 def storeRegret(models, methods, param_dic, n_expe, T):
+    """
+    Compute the experiment for all specified models and methods
+    :param models: list of MAB
+    :param methods: list of algorithms
+    :param param_dic: parameters for all the methods
+    :param n_expe: number of trials
+    :param T: Time horizon
+    :return: Dictionnary with results from the experiments
+    """
     all_regrets = np.zeros((len(methods), n_expe, T))
     final_regrets = np.zeros((len(methods), n_expe))
     q, quantiles, means, std = np.linspace(0, 1, 21), {}, {}, {}
@@ -124,6 +133,13 @@ def storeRegret(models, methods, param_dic, n_expe, T):
 
 
 def plot_IDS_results(T, n_expe, results):
+    """
+    Plot the evolution of delta, g and IR with 90% quantiles for the experiments
+    :param T: Time horizon
+    :param n_expe: Number of experiments
+    :param results: Results of the experiments as stored in StoreRegret(..)['IDS_results']
+    :return:
+    """
     delta = np.empty((T, n_expe))
     g = np.empty((T, n_expe))
     IR = np.empty((T, n_expe))
