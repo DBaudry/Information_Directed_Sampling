@@ -14,7 +14,6 @@ class GenericMAB:
     """
     Generic class for arms that defines general methods
     """
-
     def __init__(self, methods, p):
         """
         Initialization of the arms
