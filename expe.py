@@ -9,7 +9,7 @@ import matplotlib.pyplot as plt
 import numpy as np
 
 
-def bernoulli_expe(n_expe, n_arms, T, methods, param_dic, labels, colors, doplot=True):
+def bernoulli_expe(n_expe, n_arms, T, methods, param_dic, labels, colors, doplot=True, frequentist=False):
     """
     Compute regrets for a given set of algorithms (methods) over t=1,...,T and for n_expe number of independent
     experiments. Here we deal with n_arms Bernoulli Bandits
@@ -23,8 +23,12 @@ def bernoulli_expe(n_expe, n_arms, T, methods, param_dic, labels, colors, doplot
     :param doplot: boolean, plot the curves or not
     :return: dict, regrets, quantiles, means, stds of final regrets for each methods
     """
-    P = np.random.uniform(0, 1, size=n_arms*n_expe).reshape(n_expe, n_arms)
-    models = [BetaBernoulliMAB(p) for p in P]
+    if frequentist is False:
+        P = np.random.uniform(0, 1, size=n_arms*n_expe).reshape(n_expe, n_arms)
+        models = [BetaBernoulliMAB(p) for p in P]
+    else:
+        p = frequentist
+        models = [BetaBernoulliMAB(p)]*n_expe
     mean_regret, all_regrets, final_regrets, quantiles, means, std = storeRegret(models, methods, param_dic, n_expe, T)
     if doplot:
         plotRegret(labels, mean_regret, colors, 'Binary rewards')
