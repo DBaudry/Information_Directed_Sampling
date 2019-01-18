@@ -43,9 +43,9 @@ linear_methods = ['VIDS_sample']
 """Kind of Bandit problem"""
 check_Finite = False
 check_Bernoulli = True
-check_Gaussian = True
+check_Gaussian = False
 check_Linear = False
-store = True  # if you want to store the results
+store = False # if you want to store the results
 check_time = False
 
 if __name__ == '__main__':
@@ -56,7 +56,7 @@ if __name__ == '__main__':
                         param_dic=param, prior=p, q=q, R=R, N=2000, T=1000, theta=0)
     if check_Bernoulli:
         labels = bernoulli_methods
-        beta = exp.bernoulli_expe(T=1000, n_expe=300, n_arms=10, methods=bernoulli_methods,
+        beta = exp.bernoulli_expe(T=2000, n_expe=1000, n_arms=3, methods=bernoulli_methods,
                                 param_dic=param, labels=labels,
                                   colors=False, doplot=False, track_ids=True)
         if store:
