@@ -6,6 +6,7 @@ import os
 import utils
 import time
 
+
 np.random.seed(46)
 
 path = r'C:\Users\dobau\Desktop\MVA\Reinforcement Learning\Project'
@@ -45,15 +46,14 @@ check_Finite = False
 check_Bernoulli = True
 check_Gaussian = True
 check_Linear = False
-store = True  # if you want to store the results
-check_time = False
+store = False  # if you want to store the results
 
 if __name__ == '__main__':
     if check_Finite:
         p, q, R = utils.build_finite(L=10000, K=20, N=500)
         labels = finite_methods
-        exp.finite_expe(methods=finite_methods, labels=labels, colors=False,
-                        param_dic=param, prior=p, q=q, R=R, N=2000, T=1000, theta=0)
+        exp.finite_expe(methods=finite_methods, labels=labels, colors=False, param_dic=param, prior=p, q=q, R=R, theta=0, N=100, T=1000)
+
     if check_Bernoulli:
         labels = bernoulli_methods
         beta = exp.bernoulli_expe(T=1000, n_expe=300, n_arms=10, methods=bernoulli_methods,
@@ -68,15 +68,14 @@ if __name__ == '__main__':
         t0 = time.time()
         gau = exp.gaussian_expe(n_expe=300, n_arms=10, T=1000, methods=gaussian_methods,
                                 param_dic=param, labels=gaussian_methods, colors=False, track_ids=True)
+
         if store:
             pkl.dump(gau, open(os.path.join(path, 'gau.pkl'), 'wb'))
 
     if check_Linear:
-        labels = linear_methods
-
-        colors = [colors[t] for t in labels]
-        lin = exp.LinMAB_expe(n_expe=20, n_features=0, n_arms=0, T=1000, methods=linear_methods, param_dic=param,
-                              labels=labels, colors=colors, movieLens=True)
+        labels, colors = utils.labelColor(linear_methods)
+        lin = exp.LinMAB_expe(n_expe=1, n_features=5, n_arms=10, T=100, methods=linear_methods, param_dic=param,
+                              labels=labels, colors=colors, movieLens=False)
         if store:
             pkl.dump(lin, open(os.path.join(path, 'lin10features.pkl'), 'wb'))
 

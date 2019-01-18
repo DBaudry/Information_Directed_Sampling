@@ -8,6 +8,7 @@ from utils import plotRegret, storeRegret, cmap, build_bernoulli_finite_set, plo
 from tqdm import tqdm
 import matplotlib.pyplot as plt
 import numpy as np
+from tqdm import tqdm
 
 
 def bernoulli_expe(n_expe, n_arms, T, methods, param_dic, labels, colors,

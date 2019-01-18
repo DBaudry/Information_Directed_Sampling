@@ -1,6 +1,6 @@
 """ Packages import """
 from MAB import *
-from copy import copy
+
 
 class FiniteSets(GenericMAB):
     def __init__(self, method, param, q_theta, prior, R):
