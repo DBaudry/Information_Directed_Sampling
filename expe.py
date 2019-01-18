@@ -4,12 +4,14 @@ from BernoulliMAB import BetaBernoulliMAB
 from GaussianMAB import GaussianMAB
 from FiniteSetsMAB import FiniteSets
 from LinMAB import PaperLinModel, ColdStartMovieLensModel, LinMAB
-from utils import plotRegret, storeRegret, cmap
+from utils import plotRegret, storeRegret, cmap, build_bernoulli_finite_set, plot_IDS_results
+from tqdm import tqdm
 import matplotlib.pyplot as plt
 import numpy as np
 
 
-def bernoulli_expe(n_expe, n_arms, T, methods, param_dic, labels, colors, doplot=True, frequentist=False):
+def bernoulli_expe(n_expe, n_arms, T, methods, param_dic, labels, colors,
+                   doplot=True, frequentist=False, track_ids=False):
     """
     Compute regrets for a given set of algorithms (methods) over t=1,...,T and for n_expe number of independent
     experiments. Here we deal with n_arms Bernoulli Bandits
@@ -29,13 +31,18 @@ def bernoulli_expe(n_expe, n_arms, T, methods, param_dic, labels, colors, doplot
     else:
         p = frequentist
         models = [BetaBernoulliMAB(p)]*n_expe
-    mean_regret, all_regrets, final_regrets, quantiles, means, std = storeRegret(models, methods, param_dic, n_expe, T)
+    if track_ids:
+        for m in models:
+            m.store_IDS = True
+    results = storeRegret(models, methods, param_dic, n_expe, T)
     if doplot:
-        plotRegret(labels, mean_regret, colors, 'Binary rewards')
-    return {'all_regrets': all_regrets, 'quantiles': quantiles, 'means': means, 'std': std}
+        plotRegret(labels, results['mean_regret'], colors, 'Binary rewards')
+    if track_ids:
+        plot_IDS_results(T, n_expe, results['IDS_results'])
+    return results
 
 
-def gaussian_expe(n_expe, n_arms, T, methods, param_dic, labels, colors, doplot=True):
+def gaussian_expe(n_expe, n_arms, T, methods, param_dic, labels, colors, doplot=True, track_ids=False):
     """
     Compute regrets for a given set of algorithms (methods) over t=1,...,T and for n_expe number of independent
     experiments. Here we deal with n_arms Gaussian Bandits with Gaussian prior
@@ -53,10 +60,50 @@ def gaussian_expe(n_expe, n_arms, T, methods, param_dic, labels, colors, doplot=
     sigma = np.ones(n_arms*n_expe).reshape(n_expe, n_arms)
     P = [[[m[i], s[i]] for i in range(n_arms)] for m, s in zip(mu, sigma)]
     models = [GaussianMAB(p) for p in P]
-    mean_regret, all_regrets, final_regrets, quantiles, means, std = storeRegret(models, methods, param_dic, n_expe, T)
+    if track_ids:
+        for m in models:
+            m.store_IDS = True
+    results = storeRegret(models, methods, param_dic, n_expe, T)
     if doplot:
-        plotRegret(labels, mean_regret, colors, 'Gaussian rewards')
-    return {'all_regrets': all_regrets, 'quantiles': quantiles, 'means': means, 'std': std}
+        plotRegret(labels, results['mean_regret'], colors, 'Gaussian rewards')
+    if track_ids:
+        plot_IDS_results(T, n_expe, results['IDS_results'])
+    return results
+
+
+def LinMAB_expe(n_expe, n_features, n_arms, T, methods, param_dic, labels,
+                colors, doplot=True, movieLens=False, track_ids=False):
+    """
+    Compute regrets for a given set of algorithms (methods) over t=1,...,T and for n_expe number of independent
+    experiments. Here we deal with n_arms Linear Gaussian Bandits with multivariate Gaussian prior
+    :param n_expe: int, number of experiments
+    :param n_features: int, dimension of feature vectors
+    :param n_arms: int, number of arms
+    :param T: int, time horizon
+    :param methods: list, algorithms to use
+    :param param_dic: dict, parameters associated to each algorithm (see main for formatting)
+    :param labels: list, labels for the curves
+    :param colors: list, colors for the curves
+    :param doplot: boolean, plot the curves or not
+    :param movieLens: boolean, if True uses ColdStartMovieLensModel otherwise PaperLinModel
+    :return: dict, regrets, quantiles, means, stds of final regrets for each methods
+    """
+    if movieLens:
+        models = [LinMAB(ColdStartMovieLensModel()) for _ in range(n_expe)]
+        log = True
+    else:
+        u = 1 / np.sqrt(5)
+        models = [LinMAB(PaperLinModel(u, n_features, n_arms, sigma=10)) for _ in range(n_expe)]
+        log = False
+    if track_ids:
+        for m in models:
+            m.store_IDS = True
+    results = storeRegret(models, methods, param_dic, n_expe, T)
+    if doplot:
+        plotRegret(labels, results['mean_regret'], colors, 'Linear Gaussian Model', log=log)
+    if track_ids:
+        plot_IDS_results(T, n_expe, results['IDS_results'])
+    return results
 
 
 def finite_expe(methods, labels, colors, param_dic, prior, q, R, theta, N, T):
@@ -88,37 +135,18 @@ def finite_expe(methods, labels, colors, param_dic, prior, q, R, theta, N, T):
     plt.plot(regret_IDS, label='IDS', c='cyan'); plt.ylabel('Cumulative Regret'); plt.xlabel('Time horizon')
     plt.grid(color='grey', linestyle='--', linewidth=0.5); plt.legend(); plt.show()
 
-
-def LinMAB_expe(n_expe, n_features, n_arms, T, methods, param_dic, labels, colors, doplot=True, movieLens=False):
-    """
-    Compute regrets for a given set of algorithms (methods) over t=1,...,T and for n_expe number of independent
-    experiments. Here we deal with n_arms Linear Gaussian Bandits with multivariate Gaussian prior
-    :param n_expe: int, number of experiments
-    :param n_features: int, dimension of feature vectors
-    :param n_arms: int, number of arms
-    :param T: int, time horizon
-    :param methods: list, algorithms to use
-    :param param_dic: dict, parameters associated to each algorithm (see main for formatting)
-    :param labels: list, labels for the curves
-    :param colors: list, colors for the curves
-    :param doplot: boolean, plot the curves or not
-    :param movieLens: boolean, if True uses ColdStartMovieLensModel otherwise PaperLinModel
-    :return: dict, regrets, quantiles, means, stds of final regrets for each methods
-    """
-    if movieLens:
-        models = [LinMAB(ColdStartMovieLensModel()) for _ in range(n_expe)]
-        log = True
-    else:
-        u = 1 / np.sqrt(5)
-        models = [LinMAB(PaperLinModel(u, n_features, n_arms, sigma=10)) for _ in range(n_expe)]
-        log = False
-    mean_regret, all_regrets, final_regrets, quantiles, means, std = storeRegret(models, methods, param_dic, n_expe, T)
-    if doplot:
-        plotRegret(labels, mean_regret, colors, 'Linear Gaussian Model', log=log)
-    return {'all_regrets': all_regrets, 'quantiles': quantiles, 'means': means, 'std': std}
-
-
 def Finite_Bernoulli(n_expe, nb_arms, T, M, colors, doplot=False):
+    """
+    Run Finite Sets on IDS on Bernoulli Bandits using M samples of nb_arms dimensional
+    uniformly sampled parameters.
+    :param n_expe: number of trials
+    :param nb_arms: number of arms in the Multi Armed Bandit
+    :param T: Time horizon
+    :param M: Number of Samples for the parameter space
+    :param colors: colors for plotting the mean regret
+    :param doplot: Boolean
+    :return: Dict with results for tested algorithms
+    """
     theta = np.random.uniform(0, 1, size=nb_arms*n_expe).reshape(n_expe, nb_arms)
     true_param = [[[np.array([0, 1]), np.array([theta[i, j], 1-theta[i, j]])] for j in range(nb_arms)] for i
                   in range(n_expe)]
