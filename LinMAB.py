@@ -51,7 +51,6 @@ class PaperLinModel(ArmGaussianLinear):
         self.features = self.local_random.uniform(-u, u, (n_actions, n_features))
         self.real_theta = self.local_random.multivariate_normal(np.zeros(n_features), sigma*np.eye(n_features))
 
-
 class ColdStartMovieLensModel(ArmGaussianLinear):
     def __init__(self, n_features=30, n_actions=207, eta=1, sigma=10):
         super(ColdStartMovieLensModel, self).__init__(random_state=np.random.randint(1, 312414))
@@ -71,6 +70,7 @@ class LinMAB():
         self.flag = False
         self.optimal_arm = None
         self.threshold = 0.9
+        self.store_IDS = False
 
     def initPrior(self, a0=1, s0=10):
         mu_0 = a0 * np.ones(self.d)
