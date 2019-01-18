@@ -267,7 +267,8 @@ class GaussianMAB(GenericMAB):
                     arm = self.optimal_arm
                 else:
                     delta, v, p_star, maap = self.IR_approx(mu, sigma, X, f, F, N, p_star, maap)
-                    arm = rd_argmax(-delta**2/v)
+                    arm = self.IDSAction(delta, v)
+                    # arm = rd_argmax(-delta**2/v)
             else:
                 arm = self.optimal_arm
             self.update_lists(t, arm, Sa, Na, reward, arm_sequence)
@@ -301,7 +302,8 @@ class GaussianMAB(GenericMAB):
             rho_star = sum([p_a[a] * Maap[a, a] for a in range(self.nb_arms)])
             delta = rho_star - mu
             v = np.array([sum([p_a[ap] * (Maap[a, ap] - mu[a]) ** 2 for ap in range(self.nb_arms)]) for a in range(self.nb_arms)])
-            arm = rd_argmax(-delta ** 2 / v)
+            arm = self.IDSAction(delta, v)
+            # arm = rd_argmax(-delta ** 2 / v)
         return arm, p_a
 
     def VIDS_sample(self, T, M=10000):

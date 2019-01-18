@@ -114,7 +114,37 @@ def storeRegret(models, methods, param_dic, n_expe, T):
             final_regrets[j, i] = all_regrets[j, i, -1]
             quantiles[m], means[m], std[m] = np.quantile(final_regrets[j, :], q), final_regrets[j,:].mean(), final_regrets[j, :].std()
     mean_regret = all_regrets.mean(axis=1)
-    return mean_regret, all_regrets, final_regrets, quantiles, means, std
+    results = {'mean_regret': mean_regret, 'all_regrets': all_regrets,
+               'final_regrets': final_regrets, 'quantiles': quantiles,
+               'means': means, 'std': std}
+    if models[0].store_IDS:
+        IDS_res = [m.IDS_results for m in models]
+        results['IDS_results'] = IDS_res
+    return results
+
+
+def plot_IDS_results(T, n_expe, results):
+    delta = np.empty((T, n_expe))
+    g = np.empty((T, n_expe))
+    IR = np.empty((T, n_expe))
+    for i, r in enumerate(results):
+        r['policy'] = np.asarray(r['policy'])
+        delta[:r['policy'].shape[0], i] = (np.asarray(r['delta'])*r['policy']).sum(axis=1)
+        g[:r['policy'].shape[0], i] = (np.asarray(r['g'])*r['policy']).sum(axis=1)
+        IR[:r['policy'].shape[0], i] = np.asarray(r['IR'])
+    x = np.arange(1, T+1)
+    f, (ax1, ax2, ax3) = plt.subplots(3, sharex=True, sharey=False)
+    plt.xlabel('Time horizon')
+    ax1.plot(x, delta.mean(axis=1))
+    ax1.fill_between(x, np.quantile(delta, 0.05, axis=1), np.quantile(delta, 0.95, axis=1), color='lightblue')
+    ax2.plot(x, g.mean(axis=1))
+    ax2.fill_between(x, np.quantile(g, 0.05, axis=1), np.quantile(g, 0.95, axis=1), color='lightblue')
+    ax3.plot(x, IR.mean(axis=1), color='r')
+    ax3.fill_between(x, np.quantile(IR, 0.05, axis=1), np.quantile(IR, 0.95, axis=1), color='#FFA07A')
+    ax1.set_title('Average Delta')
+    ax2.set_title('Average Information Gain')
+    ax3.set_title('Average Information Ratio')
+    plt.show()
 
 
 def build_finite(L, K, N):
