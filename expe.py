@@ -4,9 +4,10 @@ from BernoulliMAB import BetaBernoulliMAB
 from GaussianMAB import GaussianMAB
 from FiniteSetsMAB import FiniteSets
 from LinMAB import PaperLinModel, ColdStartMovieLensModel, LinMAB
-from utils import plotRegret, storeRegret, cmap
+from utils import plotRegret, storeRegret, cmap, build_bernoulli_finite_set
 import matplotlib.pyplot as plt
 import numpy as np
+from tqdm import tqdm
 
 
 def bernoulli_expe(n_expe, n_arms, T, methods, param_dic, labels, colors, doplot=True, frequentist=False):

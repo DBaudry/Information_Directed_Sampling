@@ -25,21 +25,21 @@ mapping_methods_labels = {'KG': 'KG',
                           'UCB1': 'UCB1'}
 
 mapping_methods_colors = {'KG': 'yellow',
-          'Approx_KG_star':'orchid',
-          'KG_star': 'orchid',
-          'IDS':'chartreuse',
-          'TS': 'blue',
-          'BayesUCB': 'cyan',
-          'UCB_Tuned': 'red',
-          'LinUCB': 'yellow',
-          'MOSS': 'black',
-          'GPUCB': 'black',
-          'Tuned_GPUCB': 'red',
-          'VIDS_approx': 'purple',
-          'VIDS_sample': 'green',
-          'IDS_approx': 'chartreuse',
-          'IDS_sample': 'orange',
-          'UCB1': 'darkred'}
+                          'Approx_KG_star':'orchid',
+                          'KG_star': 'orchid',
+                          'IDS':'chartreuse',
+                          'TS': 'blue',
+                          'BayesUCB': 'cyan',
+                          'UCB_Tuned': 'red',
+                          'LinUCB': 'yellow',
+                          'MOSS': 'black',
+                          'GPUCB': 'black',
+                          'Tuned_GPUCB': 'red',
+                          'VIDS_approx': 'purple',
+                          'VIDS_sample': 'green',
+                          'IDS_approx': 'chartreuse',
+                          'IDS_sample': 'orange',
+                          'UCB1': 'darkred'}
 
 
 def labelColor(methods):
