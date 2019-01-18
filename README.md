@@ -5,7 +5,7 @@ The aim of this project is to propose a platform that allows to reproduce the ex
 We first implement classes to implement a general Multi-Arm Bandit setting. Then, we provide some problem specific classes that implements different versions of IDS and some widely-studied algorithms to compare the performance IDS with the results of these algorithms.
 The aim of these algorithm is to minimize the Bayesian Regret for the specified problem.
 
-## General settings: MAB
+## General settings: Multi Arm Bandit
 
 In the MAB file we implement the generic class for a Multi Arm Bandit settings. We implemented the algorithms that are not problem specific and some useful function to handle the results of the algorithm.
 
