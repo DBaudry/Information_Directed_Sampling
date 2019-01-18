@@ -15,7 +15,7 @@ We provide a few classes we settings and functions to run experiments for the pr
 
 * FiniteSets: A first algorithm for the case where the parameter space, action space and outcome space are all finites
 * BernoulliMAB: independent Bernoulli arms with parameters drawn uniformly at random. 
-* GaussianMAB: independent Gaussian MAB of distribution $N(\theta_a,1)$ where $\theta_a$ is drawn at random with gaussian distribution $N(0,1)$
+* GaussianMAB: independent Gaussian arms where the mean is drawn at random with the gaussian distribution
 * LinearMAB: Linear Gaussian bandit with independent features, this class does not use MAB but a specific class designed for Linear Bandits. All parameters are drawn from Gaussians in this model
 
 ## How to run Experiment
