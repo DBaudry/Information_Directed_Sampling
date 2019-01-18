@@ -2,9 +2,8 @@
 import expe as exp
 import numpy as np
 import pickle as pkl
-from utils import labelColor
-import os
 import utils
+import os
 
 np.random.seed(46)
 
@@ -46,19 +45,19 @@ if __name__ == '__main__':
         exp.finite_expe(methods=finite_methods, labels=labels, colors=False, param_dic=param, prior=p, q=q, R=R, theta=0, N=100, T=1000)
 
     if check_Bernoulli:
-        labels, colors = labelColor(bernoulli_methods)
+        labels, colors = utils.labelColor(bernoulli_methods)
         beta = exp.bernoulli_expe(T=1000, n_expe=1, n_arms=10, methods=bernoulli_methods, param_dic=param, labels=labels, colors=colors)
         if store:
             pkl.dump(beta, open(os.path.join(path, 'beta_asymp.pkl'), 'wb'))
 
     if check_Gaussian:
-        labels, colors = labelColor(gaussian_methods)
+        labels, colors = utils.labelColor(gaussian_methods)
         gau = exp.gaussian_expe(n_expe=1, n_arms=10, T=100, methods=gaussian_methods, param_dic=param, labels=labels, colors=colors)
         if store:
             pkl.dump(gau, open(os.path.join(path, 'gau.pkl'), 'wb'))
 
     if check_Linear:
-        labels, colors = labelColor(linear_methods)
+        labels, colors = utils.labelColor(linear_methods)
         lin = exp.LinMAB_expe(n_expe=1, n_features=5, n_arms=10, T=100, methods=linear_methods, param_dic=param,
                               labels=labels, colors=colors, movieLens=False)
         if store:
