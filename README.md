@@ -18,6 +18,6 @@ We provide a few classes we settings and functions to run experiments for the pr
 * GaussianMAB: independent Gaussian arms where the mean is drawn at random with the gaussian distribution
 * LinearMAB: Linear Gaussian bandit with independent features, this class does not use MAB but a specific class designed for Linear Bandits. All parameters are drawn from Gaussians in this model
 
-## How to run Experiment
+## How to run Experiments
 
 We provide an expe file with functions that help to run experiments for the pre-cited problems easily. These function are called in the main file, which is designed to help the choice of the arguments in the expe functions.
