@@ -133,3 +133,12 @@ def build_finite(L, K, N):
     p = np.random.uniform(0, 1, L)
     p = p / p.sum()
     return p, q, R
+
+
+def build_bernoulli_finite_set(L, K):
+    r = np.array([0, 1])
+    p = np.ones(L)/L
+    q = np.empty((L, K, 2))
+    q[:, :, 0] = np.random.uniform(size=L*K).reshape((L, K))
+    q[:, :, 1] = 1-q[:, :, 0]
+    return p, q, r

@@ -9,7 +9,7 @@ import matplotlib.pyplot as plt
 import numpy as np
 
 
-def bernoulli_expe(n_expe, n_arms, T, methods, param_dic, labels, colors, doplot=True):
+def bernoulli_expe(n_expe, n_arms, T, methods, param_dic, labels, colors, doplot=True, frequentist=False):
     """
     Compute regrets for a given set of algorithms (methods) over t=1,...,T and for n_expe number of independent
     experiments. Here we deal with n_arms Bernoulli Bandits
@@ -23,8 +23,12 @@ def bernoulli_expe(n_expe, n_arms, T, methods, param_dic, labels, colors, doplot
     :param doplot: boolean, plot the curves or not
     :return: dict, regrets, quantiles, means, stds of final regrets for each methods
     """
-    P = np.random.uniform(0, 1, size=n_arms*n_expe).reshape(n_expe, n_arms)
-    models = [BetaBernoulliMAB(p) for p in P]
+    if frequentist is False:
+        P = np.random.uniform(0, 1, size=n_arms*n_expe).reshape(n_expe, n_arms)
+        models = [BetaBernoulliMAB(p) for p in P]
+    else:
+        p = frequentist
+        models = [BetaBernoulliMAB(p)]*n_expe
     mean_regret, all_regrets, final_regrets, quantiles, means, std = storeRegret(models, methods, param_dic, n_expe, T)
     if doplot:
         plotRegret(labels, mean_regret, colors, 'Binary rewards')
@@ -111,4 +115,22 @@ def LinMAB_expe(n_expe, n_features, n_arms, T, methods, param_dic, labels, color
     mean_regret, all_regrets, final_regrets, quantiles, means, std = storeRegret(models, methods, param_dic, n_expe, T)
     if doplot:
         plotRegret(labels, mean_regret, colors, 'Linear Gaussian Model', log=log)
+    return {'all_regrets': all_regrets, 'quantiles': quantiles, 'means': means, 'std': std}
+
+
+def Finite_Bernoulli(n_expe, nb_arms, T, M, colors, doplot=False):
+    theta = np.random.uniform(0, 1, size=nb_arms*n_expe).reshape(n_expe, nb_arms)
+    true_param = [[[np.array([0, 1]), np.array([theta[i, j], 1-theta[i, j]])] for j in range(nb_arms)] for i
+                  in range(n_expe)]
+    prior, q, R = build_bernoulli_finite_set(M, nb_arms)
+    all_regrets = np.empty((n_expe, T))
+    for i in tqdm(range(n_expe)):
+        my_MAB = FiniteSets(['F']*nb_arms, true_param[i], q, prior, R)
+        all_regrets[i] = my_MAB.regret(my_MAB.IDS(T)[0], T)
+    mean_regret = all_regrets.mean(axis=0).reshape((1, T))
+    quantiles = {'Finite IDS': np.quantile(mean_regret, np.arange(0, 1, 21))}
+    means = {'Finite IDS': mean_regret[-1]}
+    std = {'Finite IDS': all_regrets.std(axis=0).reshape((1, T))}
+    if doplot:
+        plotRegret(['IDS with fixed parameter sample'], mean_regret, colors, 'Binary rewards')
     return {'all_regrets': all_regrets, 'quantiles': quantiles, 'means': means, 'std': std}
