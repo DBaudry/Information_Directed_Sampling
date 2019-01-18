@@ -2,12 +2,13 @@
 import expe as exp
 import numpy as np
 import pickle as pkl
-from utils import build_finite, labelColor
+from utils import labelColor
 import os
+import utils
 
 np.random.seed(46)
 
-path = '/Users/bfiliot/Desktop/MVA/RL/PROJET/'
+path = r'C:\Users\dobau\Desktop\MVA\Reinforcement Learning\Project'
 
 param = {
     'UCB1': {'rho': np.sqrt(2)},
@@ -32,15 +33,15 @@ linear_methods = ['TS', 'LinUCB', 'BayesUCB', 'GPUCB', 'Tuned_GPUCB', 'VIDS_samp
 
 """Kind of Bandit problem"""
 check_Finite = False
-check_Bernoulli = False
+check_Bernoulli = True
 check_Gaussian = False
-check_Linear = True
-check_time = False
+check_Linear = False
+
 store = False  # if you want to store the results
 
 if __name__ == '__main__':
     if check_Finite:
-        p, q, R = build_finite(L=1000, K=10, N=200)
+        p, q, R = utils.build_finite(L=10000, K=20, N=500)
         labels = finite_methods
         exp.finite_expe(methods=finite_methods, labels=labels, colors=False, param_dic=param, prior=p, q=q, R=R, theta=0, N=100, T=1000)
 
@@ -48,7 +49,7 @@ if __name__ == '__main__':
         labels, colors = labelColor(bernoulli_methods)
         beta = exp.bernoulli_expe(T=1000, n_expe=1, n_arms=10, methods=bernoulli_methods, param_dic=param, labels=labels, colors=colors)
         if store:
-            pkl.dump(beta, open(os.path.join(path, 'beta.pkl'), 'wb'))
+            pkl.dump(beta, open(os.path.join(path, 'beta_asymp.pkl'), 'wb'))
 
     if check_Gaussian:
         labels, colors = labelColor(gaussian_methods)

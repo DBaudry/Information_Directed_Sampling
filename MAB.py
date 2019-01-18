@@ -23,6 +23,9 @@ class GenericMAB:
         self.nb_arms = len(self.MAB)
         self.means = [el.mean for el in self.MAB]
         self.mu_max = np.max(self.means)
+        self.IDS_results = {'arms': [], 'policy': [],
+                            'delta': [], 'g': [], 'IR': []}
+        self.store_IDS = False
 
     @staticmethod
     def generate_arms(methods, p):
@@ -202,4 +205,12 @@ class GenericMAB:
         a, ap = amin // self.nb_arms, amin % self.nb_arms
         b = np.random.binomial(1, Q[a, ap])
         arm = int(b * a + (1 - b) * ap)
+        if self.store_IDS:
+            self.IDS_results['arms'].append(arm)
+            policy = np.zeros(self.nb_arms)
+            policy[a], policy[ap] = Q[a, ap], (1-Q[a, ap])
+            self.IDS_results['policy'].append(policy)
+            self.IDS_results['delta'].append(delta)
+            self.IDS_results['g'].append(g)
+            self.IDS_results['IR'].append(np.inner(delta**2, policy)/np.inner(g, policy))
         return arm
